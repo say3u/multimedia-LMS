@@ -1,6 +1,4 @@
-# Media Library Tracker
-
-CS 514 – Database Theory and Implementation, final team project.
+# Media Library Tracker | CS 514 Final Team Project
 
 ## What it is
 A personal media tracker for books, movies, shows, and games. Track what
