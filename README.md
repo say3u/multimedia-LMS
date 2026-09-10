@@ -7,7 +7,7 @@
 A multi-user game wishlist manager and price tracker. Sites like gg.deals
 track prices across major platforms but treat every wishlist item the same
 way, bombarding you with notifications regardless of how much you actually
-care about a given game — and they don't cover niche platforms (VR, retro,
+care about a given game and they don't cover niche platforms (VR, retro,
 mods, mobile). This app lets you build a wishlist across any platform, see
 current and historical prices, and organize games into your own notification
 categories (e.g. "hunting hard" checked hourly, vs. "someday maybe" checked
