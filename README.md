@@ -1,10 +1,10 @@
 ## https://sites.google.com/view/teamwhatever?usp=sharing
 
 
-# Media Library Tracker | CS 514 Final Team Project
+#  Game Library Tracker | CS 514 Final Team Project
 
 ## What it is
-A personal media tracker for books, movies, shows, and games. Track what
+A personal media tracker for games. Track what
 you want to try, what you're in progress on, and what you've finished, with
 your own notes and ratings. Includes a social layer (following other users,
 lending items to friends) and pulls item data in automatically from public
