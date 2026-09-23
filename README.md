@@ -1,4 +1,4 @@
-## https://sites.google.com/view/teamwhatever?usp=sharing
+## https://sites.google.com/view/gamebuddyfs
 
 
 #  GameBuddy | CS 514 Final Team Project
@@ -16,7 +16,7 @@ weekly) so you only get pinged about what you actually care about.
 ## Team
 - David Nguyen - Team lead, floats across database, backend, and testing/benchmarking
 - Eugene Vinnichenko - Backend & database
-- Elmer Mendez - Backend/Frontend Support and Presenting & Website
+- Elmer Mendez - Backend Support and Presenting & Website
 - Brandon Tse - Frontend Support and Testing/benchmarking
 - Harish Raaj Sivakumar - Frontend 
 
