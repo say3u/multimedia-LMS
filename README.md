@@ -44,3 +44,6 @@ weekly) so you only get pinged about what you actually care about.
 Phase 1 - schema built and tested, Steam import pipeline working
 end-to-end (games, prices, and price history confirmed populating
 correctly). Draft website content in progress.
+
+
+![Demo](images/demo.webp)
