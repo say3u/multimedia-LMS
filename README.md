@@ -1,7 +1,7 @@
 ## https://sites.google.com/view/teamwhatever?usp=sharing
 
 
-#  Game Wishlist Manager | CS 514 Final Team Project
+#  GameBuddy | CS 514 Final Team Project
 
 ## What it is
 A multi-user game wishlist manager and price tracker. Sites like gg.deals
