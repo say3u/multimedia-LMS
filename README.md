@@ -14,11 +14,11 @@ categories (e.g. "hunting hard" checked hourly, vs. "someday maybe" checked
 weekly) so you only get pinged about what you actually care about.
 
 ## Team
-- David Nguyen - [role]
-- Eugene Vinnichenko - [role]
-- Elmer Mendez - [role]
-- Brandon Tse - [role]
-- Harish Raaj Sivakumar - [role]
+- David Nguyen - Team lead, floats across database, backend, and testing/benchmarking
+- Eugene Vinnichenko - Backend & database
+- Elmer Mendez - Backend/Frontend Support and Presenting & Website
+- Brandon Tse - Frontend Support and Testing/benchmarking
+- Harish Raaj Sivakumar - Frontend 
 
 ## Tech stack
 - MySQL
