@@ -45,5 +45,6 @@ Phase 1 - schema built and tested, Steam import pipeline working
 end-to-end (games, prices, and price history confirmed populating
 correctly). Draft website content in progress.
 
+## ER Diagram
 
-![Demo](images/demo.webp)
+<img src="images/erdiagram.webp" alt="ER Diagram" width="800">
