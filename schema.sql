@@ -157,6 +157,26 @@ CREATE TABLE IF NOT EXISTS reviews (
     UNIQUE KEY uq_user_review (user_id, game_id)
 ) ENGINE=InnoDB;
 
+-- TAGS + GAME_TAGS
+-- labels for what kind of game something is -- 'vr', 'mobile', 'mod',
+-- 'co-op', etc. this is what lets you search for the niche stuff that
+-- sites like gg.deals don't really cover. a game can have a bunch of
+-- tags and a tag can be on a bunch of games, so it's many-to-many --
+-- same idea as lists/list_items. kept this separate from games.genre
+-- since genre is just whatever text the store gives us
+CREATE TABLE IF NOT EXISTS tags (
+    tag_id          INT AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(50) NOT NULL UNIQUE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS game_tags (
+    game_id         INT NOT NULL,
+    tag_id          INT NOT NULL,
+    PRIMARY KEY (game_id, tag_id),
+    FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(tag_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ============================================
 -- NEW STUFF FOR THE PRICE TRACKING SIDE
 -- ============================================
@@ -397,6 +417,8 @@ WHERE l.current_price = (
 -- follows          - who's following who
 -- loans            - lending physical copies between users (transaction #1)
 -- reviews          - public reviews
+-- tags             - labels like vr, mobile, mod
+-- game_tags        - connects games to tags
 -- platforms              - steam, xbox, playstation store, epic, gog, etc
 -- listings               - a game's price on a specific platform right now
 -- price_history          - every price we've ever logged for a listing
