@@ -1,6 +1,7 @@
 
 #  GameBuddy | CS 514 Final Team Project
 Design Planning: https://docs.google.com/document/d/1SZhi5rWudaYoxWQ4refjZ3xmhEVcpnUgkQmJFg961Mw/edit?usp=sharing
+
 Website Link: https://sites.google.com/view/gamebuddyfs
 
 ## What it is
