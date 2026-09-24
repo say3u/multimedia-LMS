@@ -237,6 +237,9 @@ def main():
         print(f"\ndone. processed {added_count} games")
 
     except Exception as e:
+        # note: record_price_check commits on its own, so any games that
+        # already went through before the error are saved -- this rollback
+        # only undoes whatever was still pending for the game that broke
         conn.rollback()
         log_import(cursor, added_count, updated_count, status="failed", error=str(e))
         conn.commit()
