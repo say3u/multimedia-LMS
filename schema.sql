@@ -359,12 +359,15 @@ DELIMITER ;
 -- ============================================
 -- VIEW: CURRENT_BEST_PRICES
 -- ============================================
--- one row per game showing its cheapest current listing across every
+-- shows each game's cheapest current listing across every
 -- platform it's sold on. built on top of listings + platforms + games --
 -- exactly the kind of "3+ table join, computed on the fly instead of
 -- stored" case a view is for. current_price changes constantly, so we
 -- don't want to cache "cheapest price" anywhere, we want it computed
 -- fresh every time from listings.current_price.
+-- heads up: if a game is tied for cheapest on two stores (like $19.99 on
+-- both steam and gog) it shows up twice, once per store. kept it that way
+-- on purpose since it's useful to see every store that has the best price
 CREATE OR REPLACE VIEW current_best_prices AS
 SELECT
     g.game_id,
