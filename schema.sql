@@ -332,6 +332,34 @@ BEGIN
 END //
 DELIMITER ;
 
+-- ============================================
+-- VIEW: CURRENT_BEST_PRICES
+-- ============================================
+-- one row per game showing its cheapest current listing across every
+-- platform it's sold on. built on top of listings + platforms + games --
+-- exactly the kind of "3+ table join, computed on the fly instead of
+-- stored" case a view is for. current_price changes constantly, so we
+-- don't want to cache "cheapest price" anywhere, we want it computed
+-- fresh every time from listings.current_price.
+CREATE VIEW current_best_prices AS
+SELECT
+    g.game_id,
+    g.title,
+    p.name          AS platform_name,
+    l.current_price,
+    l.currency,
+    l.listing_url,
+    l.last_checked_at
+FROM listings l
+JOIN games g      ON g.game_id = l.game_id
+JOIN platforms p  ON p.platform_id = l.platform_id
+WHERE l.current_price = (
+    SELECT MIN(l2.current_price)
+    FROM listings l2
+    WHERE l2.game_id = l.game_id
+      AND l2.current_price IS NOT NULL
+);
+
 -- recap:
 -- users            - accounts
 -- games            - the actual games (title, genre, dev/publisher, etc)
