@@ -5,6 +5,10 @@
 -- added a price tracking layer on top (tracking what a game costs across
 -- different stores/platforms over time). commented section by section so
 -- it's easier to follow what each one does and why
+--
+-- everything uses IF NOT EXISTS / DROP IF EXISTS / OR REPLACE so you can
+-- re-run this whole file in workbench without it erroring out on
+-- "table already exists" halfway through
 
 CREATE DATABASE IF NOT EXISTS game_tracker;
 USE game_tracker;
@@ -13,7 +17,7 @@ USE game_tracker;
 -- pretty standard accounts table, nothing crazy here.
 -- every other table that needs to know "which user" links back to this
 -- one using user_id as a foreign key
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     user_id         INT AUTO_INCREMENT PRIMARY KEY,
     username        VARCHAR(50)  NOT NULL UNIQUE,
     email           VARCHAR(255) NOT NULL UNIQUE,
@@ -26,7 +30,7 @@ CREATE TABLE users (
 -- etc), it all lands here the same way. same "source" + "external_id"
 -- trick as before so we don't accidentally import the same game twice
 -- from two different apis
-CREATE TABLE games (
+CREATE TABLE IF NOT EXISTS games (
     game_id         INT AUTO_INCREMENT PRIMARY KEY,
     title           VARCHAR(255) NOT NULL,
     genre           VARCHAR(100),
@@ -57,7 +61,7 @@ CREATE TABLE games (
 -- users, so it's many-to-many and needs this table in between. this is
 -- where we store stuff specific to THAT user + THAT game, like their
 -- play status and personal notes
-CREATE TABLE user_games (
+CREATE TABLE IF NOT EXISTS user_games (
     user_game_id    INT AUTO_INCREMENT PRIMARY KEY,
     user_id         INT NOT NULL,
     game_id         INT NOT NULL,
@@ -75,7 +79,7 @@ CREATE TABLE user_games (
 -- user_games only remembers your CURRENT status, not what it used to be.
 -- this logs every status change so we can show stuff like "you finished
 -- 5 games this month" later
-CREATE TABLE status_history (
+CREATE TABLE IF NOT EXISTS status_history (
     history_id      INT AUTO_INCREMENT PRIMARY KEY,
     user_game_id    INT NOT NULL,
     old_status      ENUM('want_to_play','playing','completed'),
@@ -87,7 +91,7 @@ CREATE TABLE status_history (
 -- LISTS + LIST_ITEMS
 -- custom lists users can make, like "comfy couch co-op games" or w/e.
 -- same many-to-many deal, list_items connects lists to games
-CREATE TABLE lists (
+CREATE TABLE IF NOT EXISTS lists (
     list_id         INT AUTO_INCREMENT PRIMARY KEY,
     user_id         INT NOT NULL,
     name            VARCHAR(100) NOT NULL,
@@ -97,7 +101,7 @@ CREATE TABLE lists (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE list_items (
+CREATE TABLE IF NOT EXISTS list_items (
     list_id         INT NOT NULL,
     game_id         INT NOT NULL,
     added_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -109,7 +113,7 @@ CREATE TABLE list_items (
 -- FOLLOWS TABLE
 -- the social part -- users following other users. both sides point back
 -- to users, since a user follows another user
-CREATE TABLE follows (
+CREATE TABLE IF NOT EXISTS follows (
     follower_id     INT NOT NULL,
     followee_id     INT NOT NULL,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -124,7 +128,7 @@ CREATE TABLE follows (
 -- original idea since it's still a real thing people do with games. this
 -- is one of our two transaction examples -- see the borrow_item
 -- procedure at the bottom
-CREATE TABLE loans (
+CREATE TABLE IF NOT EXISTS loans (
     loan_id         INT AUTO_INCREMENT PRIMARY KEY,
     game_id         INT NOT NULL,
     lender_id       INT NOT NULL,
@@ -141,7 +145,7 @@ CREATE TABLE loans (
 
 -- REVIEWS TABLE
 -- public reviews, separate from the private "notes" field in user_games
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
     review_id       INT AUTO_INCREMENT PRIMARY KEY,
     user_id         INT NOT NULL,
     game_id         INT NOT NULL,
@@ -160,7 +164,7 @@ CREATE TABLE reviews (
 -- PLATFORMS TABLE
 -- the stores a game can be bought from -- steam, playstation store, xbox,
 -- epic, gog, nintendo eshop, etc. small lookup table
-CREATE TABLE platforms (
+CREATE TABLE IF NOT EXISTS platforms (
     platform_id     INT AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(100) NOT NULL UNIQUE
 ) ENGINE=InnoDB;
@@ -169,7 +173,7 @@ CREATE TABLE platforms (
 -- one row per (game, platform) combo -- basically "this game is sold on
 -- this store, and here's its price right now." this is what connects
 -- games to platforms, and price_history below hangs off of this
-CREATE TABLE listings (
+CREATE TABLE IF NOT EXISTS listings (
     listing_id      INT AUTO_INCREMENT PRIMARY KEY,
     game_id         INT NOT NULL,
     platform_id     INT NOT NULL,
@@ -187,7 +191,7 @@ CREATE TABLE listings (
 -- overwriting current_price. this is basically the whole point of the
 -- pivot -- lets us actually show price trends over time, biggest drops,
 -- etc instead of just a snapshot
-CREATE TABLE price_history (
+CREATE TABLE IF NOT EXISTS price_history (
     history_id      INT AUTO_INCREMENT PRIMARY KEY,
     listing_id      INT NOT NULL,
     price           DECIMAL(8,2) NOT NULL,
@@ -204,7 +208,7 @@ CREATE TABLE price_history (
 -- category that only checks once a week. categories belong to a user
 -- (not global) since two different people probably don't want the same
 -- schedule for a category with the same name
-CREATE TABLE notification_categories (
+CREATE TABLE IF NOT EXISTS notification_categories (
     category_id             INT AUTO_INCREMENT PRIMARY KEY,
     user_id                 INT NOT NULL,
     name                    VARCHAR(50) NOT NULL,  -- e.g. 'hunting hard', 'someday maybe', 'muted'
@@ -220,7 +224,7 @@ CREATE TABLE notification_categories (
 -- user's notification_categories, which is what controls how often/
 -- whether they actually get pinged about it. this is our second
 -- transaction example, see record_price_check below
-CREATE TABLE price_alerts (
+CREATE TABLE IF NOT EXISTS price_alerts (
     alert_id        INT AUTO_INCREMENT PRIMARY KEY,
     user_id         INT NOT NULL,
     game_id         INT NOT NULL,
@@ -243,7 +247,7 @@ CREATE TABLE price_alerts (
 -- every time we pull from an api (game metadata OR a price check run),
 -- it logs a row here. good for debugging and shows the import_tmdb-style
 -- scripts actually get used for something real
-CREATE TABLE import_log (
+CREATE TABLE IF NOT EXISTS import_log (
     import_id       INT AUTO_INCREMENT PRIMARY KEY,
     source          VARCHAR(50) NOT NULL,
     run_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -261,6 +265,7 @@ CREATE TABLE import_log (
 -- time? we don't want both to go through. FOR UPDATE locks the row while
 -- we check, so the check + insert happens as one atomic step
 DELIMITER //
+DROP PROCEDURE IF EXISTS borrow_item //
 CREATE PROCEDURE borrow_item (
     IN p_game_id INT,
     IN p_lender_id INT,
@@ -299,6 +304,7 @@ DELIMITER ;
 -- one transaction, something could fail halfway through and leave
 -- price_history and listings.current_price out of sync with each other
 DELIMITER //
+DROP PROCEDURE IF EXISTS record_price_check //
 CREATE PROCEDURE record_price_check (
     IN p_listing_id INT,
     IN p_new_price DECIMAL(8,2)
@@ -341,7 +347,7 @@ DELIMITER ;
 -- stored" case a view is for. current_price changes constantly, so we
 -- don't want to cache "cheapest price" anywhere, we want it computed
 -- fresh every time from listings.current_price.
-CREATE VIEW current_best_prices AS
+CREATE OR REPLACE VIEW current_best_prices AS
 SELECT
     g.game_id,
     g.title,
