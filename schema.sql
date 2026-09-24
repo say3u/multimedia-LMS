@@ -275,6 +275,14 @@ CREATE PROCEDURE borrow_item (
 BEGIN
     DECLARE already_loaned INT;
 
+    -- if anything in here errors out, undo the whole thing and pass the
+    -- error back up instead of leaving the transaction half done
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
     START TRANSACTION;
 
     SELECT COUNT(*) INTO already_loaned
@@ -311,6 +319,16 @@ CREATE PROCEDURE record_price_check (
 )
 BEGIN
     DECLARE v_game_id INT;
+
+    -- same deal as borrow_item. without this, if say the listings UPDATE
+    -- failed, the price_history row would already be in there and the
+    -- two tables would be out of sync -- which is the whole thing this
+    -- transaction is supposed to stop from happening
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
 
     START TRANSACTION;
 
