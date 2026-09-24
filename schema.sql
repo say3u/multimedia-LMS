@@ -183,10 +183,14 @@ CREATE TABLE IF NOT EXISTS game_tags (
 
 -- PLATFORMS TABLE
 -- the stores a game can be bought from -- steam, playstation store, xbox,
--- epic, gog, nintendo eshop, etc. small lookup table
+-- epic, gog, nintendo eshop, etc. small lookup table.
+-- platform_type says what KIND of store it is, so you can search stuff
+-- like "only show me mobile" or "only vr stores" (meta quest store,
+-- app store, nexus mods, etc) without hardcoding store names
 CREATE TABLE IF NOT EXISTS platforms (
     platform_id     INT AUTO_INCREMENT PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL UNIQUE
+    name            VARCHAR(100) NOT NULL UNIQUE,
+    platform_type   ENUM('pc','console','vr','mobile','mods') NOT NULL DEFAULT 'pc'
 ) ENGINE=InnoDB;
 
 -- LISTINGS TABLE
