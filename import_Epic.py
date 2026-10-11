@@ -83,7 +83,10 @@ GAME_TITLES = [
 # polite rather than tuned to a known number
 REQUEST_DELAY_SECONDS = 2
 
-EPIC_GRAPHQL_URL = "https://www.epicgames.com/graphql"
+# has to be store.epicgames.com directly -- the old www.epicgames.com
+# url redirects here, and the redirect drops the POST body, so epic was
+# getting an empty query and sending back 400 Bad Request
+EPIC_GRAPHQL_URL = "https://store.epicgames.com/graphql"
 
 # a real browser UA helps somewhat with Epic's anti-bot layer -- see
 # the cloudscraper note at the top of this file if this isn't enough
@@ -142,8 +145,9 @@ query searchStoreQuery(
 def search_game(title):
     """looks up a game by name using Epic's storefront GraphQL endpoint
     -- the same one store.epicgames.com calls when you use the search
-    box. returns the first matching element (a dict), or None if
-    nothing came up"""
+    box. returns the best matching element (a dict), or None if
+    nothing came up. asks for a few results and prefers the base game
+    (category "games/edition/base") so we don't grab a dlc/add-on"""
     resp = requests.post(
         EPIC_GRAPHQL_URL,
         headers=HEADERS,
@@ -153,7 +157,7 @@ def search_game(title):
                 "keywords": title,
                 "country": "US",
                 "locale": "en-US",
-                "count": 1,
+                "count": 5,
             },
         },
     )
@@ -165,7 +169,14 @@ def search_game(title):
         .get("searchStore", {})
         .get("elements", [])
     )
-    return elements[0] if elements else None
+    def paths(e):
+        return {c.get("path") for c in e.get("categories") or []}
+
+    for want in ("games/edition/base", "games"):
+        for e in elements:
+            if want in paths(e):
+                return e
+    return None
 
 
 def map_app_to_game_row(element):
@@ -178,8 +189,6 @@ def map_app_to_game_row(element):
     if len(effective_date) >= 4 and effective_date[:4].isdigit():
         release_year = int(effective_date[:4])
 
-    genres = [c["path"] for c in element.get("categories", []) if c.get("path")]
-
     attrs = {a["key"]: a["value"] for a in element.get("customAttributes", []) if a.get("key")}
     developer = attrs.get("developerName")
     publisher = attrs.get("publisherName") or (element.get("seller") or {}).get("name")
@@ -188,7 +197,10 @@ def map_app_to_game_row(element):
 
     return {
         "title": element.get("title"),
-        "genre": ", ".join(genres) if genres else None,
+        # epic's "categories" are store paths like "games/edition/base",
+        # not real genres, so leave it empty -- steam/gog fill it in when
+        # they have the same game (see game_matching.py)
+        "genre": None,
         "developer": developer,
         "publisher": publisher,
         "release_year": release_year,
