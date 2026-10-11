@@ -227,6 +227,16 @@ def map_app_to_price(element):
     return discount_price / (10 ** decimals)
 
 
+def map_app_to_regular_price(element):
+    """the normal non-sale price, so we can show % off. epic calls it
+    originalPrice -- same as discountPrice when the game isn't on sale"""
+    price_block = (element.get("price") or {}).get("totalPrice")
+    if not price_block or price_block.get("originalPrice") is None:
+        return None
+    decimals = (price_block.get("currencyInfo") or {}).get("decimals", 2)
+    return price_block["originalPrice"] / (10 ** decimals)
+
+
 def get_or_create_platform(cursor, name):
     """makes sure the platform row exists (e.g. 'Epic Games Store') and
     returns its platform_id. INSERT IGNORE means this is a no-op if
@@ -285,6 +295,7 @@ def main():
 
             row = map_app_to_game_row(element)
             price = map_app_to_price(element)
+            regular_price = map_app_to_regular_price(element)
 
             game_id = find_or_create_game(cursor, row, epic_platform_id)
             listing_id = upsert_listing(cursor, game_id, epic_platform_id)
@@ -294,7 +305,7 @@ def main():
                 # the price to price_history, updates listings.current_price,
                 # AND checks/triggers anyone's price_alerts, all as one
                 # transaction -- same as the steam/gog importers
-                cursor.callproc("record_price_check", [listing_id, price])
+                cursor.callproc("record_price_check", [listing_id, price, regular_price])
                 print(f"  {row['title']}: ${price:.2f}")
             else:
                 print(f"  {row['title']}: no price available")

@@ -164,6 +164,13 @@ def map_app_to_game_row(product, description):
     }
 
 
+def map_app_to_regular_price(product):
+    """the normal non-sale price, so we can show % off. gog calls it
+    baseMoney -- same as finalMoney when the game isn't on sale"""
+    amount = ((product.get("price") or {}).get("baseMoney") or {}).get("amount")
+    return float(amount) if amount is not None else None
+
+
 def get_or_create_platform(cursor, name):
     """makes sure the platform row exists (e.g. 'GOG') and returns its
     platform_id. INSERT IGNORE means this is a no-op if it's already
@@ -222,6 +229,7 @@ def main():
 
             row = map_app_to_game_row(product, get_description(product["id"]))
             price = map_app_to_price(product)
+            regular_price = map_app_to_regular_price(product)
 
             game_id = find_or_create_game(cursor, row, gog_platform_id)
             listing_id = upsert_listing(cursor, game_id, gog_platform_id)
@@ -231,7 +239,7 @@ def main():
                 # the price to price_history, updates listings.current_price,
                 # AND checks/triggers anyone's price_alerts, all as one
                 # transaction -- same as the steam importer
-                cursor.callproc("record_price_check", [listing_id, price])
+                cursor.callproc("record_price_check", [listing_id, price, regular_price])
                 print(f"  {row['title']}: ${price:.2f}")
             else:
                 print(f"  {row['title']}: no price available")

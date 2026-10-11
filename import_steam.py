@@ -135,6 +135,15 @@ def map_app_to_price(data):
     return price_block["final"] / 100.0
 
 
+def map_app_to_regular_price(data):
+    """the normal non-sale price, so we can show % off. steam calls it
+    "initial" -- same as "final" when the game isn't on sale"""
+    price_block = data.get("price_overview")
+    if price_block is None:
+        return 0.00 if data.get("is_free") else None
+    return price_block["initial"] / 100.0
+
+
 def get_or_create_platform(cursor, name):
     """makes sure the platform row exists (e.g. 'Steam') and returns
     its platform_id. INSERT IGNORE means this is a no-op if it's
@@ -198,6 +207,7 @@ def main():
 
             row = map_app_to_game_row(appid, data)
             price = map_app_to_price(data)
+            regular_price = map_app_to_regular_price(data)
 
             game_id = find_or_create_game(cursor, row, steam_platform_id)
             listing_id = upsert_listing(cursor, game_id, steam_platform_id)
@@ -207,7 +217,7 @@ def main():
                 # the price to price_history, updates listings.current_price,
                 # AND checks/triggers anyone's price_alerts, all as one
                 # transaction
-                cursor.callproc("record_price_check", [listing_id, price])
+                cursor.callproc("record_price_check", [listing_id, price, regular_price])
                 print(f"  {row['title']}: ${price:.2f}")
             else:
                 print(f"  {row['title']}: no price available")
