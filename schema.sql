@@ -26,13 +26,16 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB;
 
 -- GAMES TABLE
--- one row = one game. doesn't matter which api it came from (igdb, steam,
--- etc), it all lands here the same way. same "source" + "external_id"
--- trick as before so we don't accidentally import the same game twice
--- from two different apis
+-- one row = one actual game, no matter how many stores sell it. this is
+-- the "one true version" we show by default. which store ids point at
+-- it (steam appid, gog id, epic id) lives in game_sources further down,
+-- so hades on steam + hades on gog + hades on epic is still ONE row here.
+-- match_title is the title cleaned up (lowercase, no ™/®/punctuation)
+-- so the import scripts can tell "Hades" and "HADES™" are the same game
 CREATE TABLE IF NOT EXISTS games (
     game_id         INT AUTO_INCREMENT PRIMARY KEY,
     title           VARCHAR(255) NOT NULL,
+    match_title     VARCHAR(255) NOT NULL,
     genre           VARCHAR(100),
     developer       VARCHAR(255),
     publisher       VARCHAR(255),
@@ -40,11 +43,8 @@ CREATE TABLE IF NOT EXISTS games (
     synopsis        TEXT,
     icon_url        VARCHAR(500),  -- small thumbnail, for grid/list views
     banner_url      VARCHAR(500),  -- bigger hero image, for the detail page
-    source          VARCHAR(50) NOT NULL,  -- 'igdb', 'steam', 'cheapshark', etc
-    external_id     VARCHAR(255),
-    source_url      VARCHAR(500),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_source_game (source, external_id)
+    KEY idx_match_title (match_title)  -- not UNIQUE, two different games can share a name
 ) ENGINE=InnoDB;
 -- note: this one table covers both a homepage grid (title, icon_url,
 -- genre) AND the detail page (synopsis, developer, publisher, etc) --
@@ -208,6 +208,30 @@ CREATE TABLE IF NOT EXISTS listings (
     FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
     FOREIGN KEY (platform_id) REFERENCES platforms(platform_id) ON DELETE CASCADE,
     UNIQUE KEY uq_game_platform (game_id, platform_id) -- one listing per game per store
+) ENGINE=InnoDB;
+
+-- GAME_SOURCES TABLE
+-- one row per store's version of a game -- its id on that store (steam
+-- appid, gog product id, epic id), the title/description THAT store
+-- uses, and the link. this is what fixes the duplicate games problem:
+-- before, steam + gog + epic would each make their own row in games for
+-- the same game, so we could never compare prices across stores.
+-- now they all point at the same game_id. keeping each store's own
+-- title/description here also means we don't lose anything if the
+-- stores word it differently (still deciding which one to show by default)
+CREATE TABLE IF NOT EXISTS game_sources (
+    source_id       INT AUTO_INCREMENT PRIMARY KEY,
+    game_id         INT NOT NULL,
+    platform_id     INT NOT NULL,
+    external_id     VARCHAR(255) NOT NULL,  -- the store's own id for the game
+    store_title     VARCHAR(255),
+    store_synopsis  TEXT,
+    source_url      VARCHAR(500),
+    last_imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
+    FOREIGN KEY (platform_id) REFERENCES platforms(platform_id) ON DELETE CASCADE,
+    UNIQUE KEY uq_store_id (platform_id, external_id),  -- same store id never imported twice
+    UNIQUE KEY uq_game_store (game_id, platform_id)      -- one source per game per store, same as listings
 ) ENGINE=InnoDB;
 
 -- PRICE_HISTORY TABLE
@@ -425,6 +449,7 @@ WHERE l.current_price = (
 -- game_tags        - connects games to tags
 -- platforms              - steam, xbox, playstation store, epic, gog, etc
 -- listings               - a game's price on a specific platform right now
+-- game_sources           - each store's id/title/link for a game, so one game = one row in games
 -- price_history          - every price we've ever logged for a listing
 -- notification_categories - user-defined groups like "hunting hard" or "muted", each with its own check schedule
 -- price_alerts           - wishlist + target price, tagged with a category, gets triggered on a price drop (transaction #2)
