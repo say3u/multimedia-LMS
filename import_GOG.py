@@ -11,8 +11,8 @@ GOG has no official public API for this (unlike Steam's storesearch/
 appdetails), so this uses the same endpoints gog.com's own website
 calls in your browser:
   - catalog.gog.com/v1/catalog  -> search by title
-  - api.gog.com/products/{id}   -> game details (genres, devs, etc)
-  - api.gog.com/products/{id}/prices -> current price
+    (also gives genres, devs, publisher, release date and price)
+  - api.gog.com/products/{id}   -> description
 
 These are unofficial and can change or break without notice -- that's
 just the nature of not having a real public API here. GOG's own support
@@ -41,7 +41,9 @@ what it does:
 - logs the whole run into import_log
 """
 
+import html
 import os
+import re
 import time
 import requests
 import mysql.connector
@@ -78,24 +80,26 @@ GAME_TITLES = [
 
 # small delay between games so we stay well under GOG's documented
 # 200 requests/hour/IP limit on api.gog.com/products/* -- each game
-# costs 2 requests to that host (details + prices), so this is
-# deliberately conservative
+# only costs 1 request to that host now (details, for the description),
+# since the catalog search already gives us the price
 REQUEST_DELAY_SECONDS = 2
 
 GOG_CATALOG_URL = "https://catalog.gog.com/v1/catalog"
 GOG_PRODUCT_URL = "https://api.gog.com/products/{id}"
-GOG_PRICE_URL = "https://api.gog.com/products/{id}/prices"
 
 
 def search_game(title):
     """looks up a game by name using GOG's catalog search endpoint --
     the same one gog.com's own search box calls. returns the first
-    match's product id, or None if nothing came up"""
+    result that's actually a game, or None if nothing came up.
+    the search puts soundtracks and dlc first a lot of the time
+    ("Disco Elysium" gave back the soundtrack), so we skip anything
+    whose productType isn't 'game'"""
     resp = requests.get(
         GOG_CATALOG_URL,
         params={
             "query": f"like:{title}",
-            "limit": 5,
+            "limit": 10,
             "countryCode": "US",
             "locale": "en-US",
             "currencyCode": "USD",
@@ -103,13 +107,15 @@ def search_game(title):
     )
     resp.raise_for_status()
     products = resp.json().get("products", [])
-    return products[0]["id"] if products else None
+    games = [p for p in products if p.get("productType") == "game"]
+    return games[0] if games else None
 
 
-def get_app_details(product_id):
-    """pulls the full details for one game -- genres, devs, publisher,
-    release date, description. returns None if GOG doesn't have
-    anything for this id (delisted, region-locked, etc)"""
+def get_description(product_id):
+    """the catalog search has almost everything except a description,
+    so this grabs just that from the product endpoint. returns None if
+    GOG doesn't have anything for this id -- not worth failing the
+    import over a missing description"""
     resp = requests.get(
         GOG_PRODUCT_URL.format(id=product_id),
         params={"expand": "description", "locale": "en-US"},
@@ -117,50 +123,44 @@ def get_app_details(product_id):
     if resp.status_code == 404:
         return None
     resp.raise_for_status()
-    return resp.json()
+    lead = (resp.json().get("description") or {}).get("lead")
+    if not lead:
+        return None
+    # some of these come back with html in them (<p class="module">...)
+    # so strip the tags + extra whitespace and just keep the text
+    text = html.unescape(re.sub(r"<[^>]+>", " ", lead))
+    return " ".join(text.split()) or None
 
 
-def get_app_price(product_id):
-    """pulls current USD price. not every product id in the catalog
-    search has a live store listing (some are delisted or
-    region-restricted), so a 404 here just means no price -- not a
-    failure of the whole import"""
-    resp = requests.get(
-        GOG_PRICE_URL.format(id=product_id),
-        params={"countryCode": "US"},
-    )
-    if resp.status_code == 404:
-        return None
-    resp.raise_for_status()
-    prices = resp.json().get("_embedded", {}).get("prices", [])
-    if not prices:
-        return None
-    # GOG gives prices as decimal strings already, e.g. "19.99"
-    amount = prices[0].get("price", {}).get("finalAmount")
+def map_app_to_price(product):
+    """pulls current USD price straight out of the catalog search
+    result, e.g. {"finalMoney": {"amount": "39.99"}}. games with no
+    price block (delisted, coming soon, etc) come back as None"""
+    amount = ((product.get("price") or {}).get("finalMoney") or {}).get("amount")
     return float(amount) if amount is not None else None
 
 
-def map_app_to_game_row(product_id, data):
-    """takes GOG's raw json and pulls out just what our games table
-    cares about"""
+def map_app_to_game_row(product, description):
+    """takes one catalog search result and pulls out just what our
+    games table cares about. genres/devs/publishers live here, NOT on
+    the product endpoint (that one doesn't have them at all)"""
     release_year = None
-    release_date = data.get("releaseDate") or ""
-    # GOG's release date comes back as an ISO string like
-    # "2000-11-30T00:00:00+00:00" when present at all
+    release_date = product.get("releaseDate") or ""
+    # catalog gives the date like "2019.10.15"
     if len(release_date) >= 4 and release_date[:4].isdigit():
         release_year = int(release_date[:4])
 
-    genres = [g.get("name") for g in data.get("genres", []) if g.get("name")]
+    genres = [g.get("name") for g in product.get("genres", []) if g.get("name")]
 
     return {
-        "title": data.get("title"),
+        "title": product.get("title"),
         "genre": ", ".join(genres) if genres else None,
-        "developer": ", ".join(data.get("developers", [])) or None,
-        "publisher": ", ".join(data.get("publishers", [])) or None,
+        "developer": ", ".join(product.get("developers", [])) or None,
+        "publisher": ", ".join(product.get("publishers", [])) or None,
         "release_year": release_year,
-        "synopsis": (data.get("description") or {}).get("lead"),
-        "external_id": str(product_id),
-        "source_url": f"https://www.gog.com/game/{data.get('slug', '')}",
+        "synopsis": description,
+        "external_id": str(product["id"]),
+        "source_url": product.get("storeLink") or f"https://www.gog.com/game/{product.get('slug', '')}",
     }
 
 
@@ -215,18 +215,13 @@ def main():
 
     try:
         for title in GAME_TITLES:
-            product_id = search_game(title)
-            if product_id is None:
+            product = search_game(title)
+            if product is None:
                 print(f"  no gog match for: {title}")
                 continue
 
-            data = get_app_details(product_id)
-            if data is None:
-                print(f"  couldn't get details for product {product_id} ({title})")
-                continue
-
-            row = map_app_to_game_row(product_id, data)
-            price = get_app_price(product_id)
+            row = map_app_to_game_row(product, get_description(product["id"]))
+            price = map_app_to_price(product)
 
             game_id = find_or_create_game(cursor, row, gog_platform_id)
             listing_id = upsert_listing(cursor, game_id, gog_platform_id)
