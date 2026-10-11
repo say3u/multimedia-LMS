@@ -30,16 +30,23 @@ weekly) so you only get pinged about what you actually care about.
   notification categories with their own check schedules, price history, and
   two stored procedures (lending a physical copy, and recording a price
   check/triggering alerts) demonstrating transactions
-- `import_steam.py` — pulls game details + current pricing from Steam's
-  store API and logs it through the database
+- `import_steam.py`, `import_GOG.py`, `import_Epic.py` — pull game details +
+  current pricing from each store and log it through the database
+- `game_matching.py` — shared by the importers so the same game from
+  different stores ends up as one game (with a row per store in
+  `game_sources`) instead of duplicates
+- `sample_queries.sql` — the queries the backend uses, grouped by feature
 
 ## Setup (so far..)
 1. Run `schema.sql` in MySQL Workbench (open the file, run the whole
    script) to create the `game_tracker` database and all its tables.
+   **If you already ran an older version:** the games table changed
+   (Oct 11), so run `DROP DATABASE game_tracker;` first, then run
+   schema.sql again, then re-run the import scripts.
 2. `pip install requests mysql-connector-python python-dotenv`
 3. Copy `.env.example` to `.env` and fill in your own MySQL password.
-4. `python import_steam.py` to pull sample game + pricing data in from
-   Steam.
+4. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py`) to
+   pull sample game + pricing data in.
 
 ## Status
 Phase 1 - schema built and tested, Steam import pipeline working
