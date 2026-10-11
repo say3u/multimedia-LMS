@@ -32,7 +32,9 @@ what it does:
 - searches GOG's catalog for each game title in GAME_TITLES below
 - pulls full details (genre, devs, publisher, release year, description)
   plus current USD price for whatever it finds
-- upserts the game into games, and its price into listings
+- links it to the same game from another store if we already have it
+  (see game_matching.py), otherwise adds it as a new game, then makes
+  sure there's a listings row for its price
 - calls the record_price_check() procedure from schema.sql so the price
   also gets logged to price_history AND checked against everyone's
   price_alerts, same as the steam importer
@@ -45,6 +47,8 @@ import requests
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
+
+from game_matching import find_or_create_game
 
 load_dotenv()  # reads the .env file (if present) into the environment
 
@@ -155,7 +159,6 @@ def map_app_to_game_row(product_id, data):
         "publisher": ", ".join(data.get("publishers", [])) or None,
         "release_year": release_year,
         "synopsis": (data.get("description") or {}).get("lead"),
-        "source": "gog",
         "external_id": str(product_id),
         "source_url": f"https://www.gog.com/game/{data.get('slug', '')}",
     }
@@ -172,25 +175,6 @@ def get_or_create_platform(cursor, name):
         "SELECT platform_id FROM platforms WHERE name = %s", (name,)
     )
     return cursor.fetchone()[0]
-
-
-def upsert_game(cursor, row):
-    """inserts the game into games, or updates it if we've already
-    imported this exact GOG product id before. returns the game_id
-    either way so we can use it for the listing"""
-    sql = """
-        INSERT INTO games
-            (title, genre, developer, publisher, release_year, synopsis, source, external_id, source_url)
-        VALUES
-            (%(title)s, %(genre)s, %(developer)s, %(publisher)s, %(release_year)s, %(synopsis)s, %(source)s, %(external_id)s, %(source_url)s)
-        ON DUPLICATE KEY UPDATE
-            title = VALUES(title),
-            genre = VALUES(genre),
-            synopsis = VALUES(synopsis),
-            game_id = LAST_INSERT_ID(game_id)
-    """
-    cursor.execute(sql, row)
-    return cursor.lastrowid
 
 
 def upsert_listing(cursor, game_id, platform_id):
@@ -244,7 +228,7 @@ def main():
             row = map_app_to_game_row(product_id, data)
             price = get_app_price(product_id)
 
-            game_id = upsert_game(cursor, row)
+            game_id = find_or_create_game(cursor, row, gog_platform_id)
             listing_id = upsert_listing(cursor, game_id, gog_platform_id)
 
             if price is not None:
@@ -258,7 +242,7 @@ def main():
                 print(f"  {row['title']}: no price available")
 
             added_count += 1  # not distinguishing added vs updated here since
-                               # upsert_game/upsert_listing don't tell us --
+                               # find_or_create_game/upsert_listing don't tell us --
                                # good enough for the starter version
 
             time.sleep(REQUEST_DELAY_SECONDS)  # be polite to api.gog.com
