@@ -202,6 +202,11 @@ CREATE TABLE IF NOT EXISTS listings (
     game_id         INT NOT NULL,
     platform_id     INT NOT NULL,
     current_price   DECIMAL(8,2),
+    -- the normal non-sale price, so we can show "-20%" and an "on sale"
+    -- filter. didn't store discount_percent too since it's just math on
+    -- these two columns -- storing it would be a copy that could go out
+    -- of sync (see discount_percent in current_best_prices instead)
+    regular_price   DECIMAL(8,2),
     currency        CHAR(3) NOT NULL DEFAULT 'USD',
     listing_url     VARCHAR(500),
     last_checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -363,7 +368,8 @@ DELIMITER //
 DROP PROCEDURE IF EXISTS record_price_check //
 CREATE PROCEDURE record_price_check (
     IN p_listing_id INT,
-    IN p_new_price DECIMAL(8,2)
+    IN p_new_price DECIMAL(8,2),
+    IN p_regular_price DECIMAL(8,2)  -- the non-sale price, can be NULL if the store doesn't say
 )
 BEGIN
     DECLARE v_game_id INT;
@@ -389,7 +395,9 @@ BEGIN
     VALUES (p_listing_id, p_new_price, NOW());
 
     UPDATE listings
-    SET current_price = p_new_price, last_checked_at = NOW()
+    SET current_price = p_new_price,
+        regular_price = p_regular_price,
+        last_checked_at = NOW()
     WHERE listing_id = p_listing_id;
 
     -- anybody watching this game for a price at or below what it just
@@ -422,6 +430,12 @@ SELECT
     g.title,
     p.name          AS platform_name,
     l.current_price,
+    l.regular_price,
+    -- % off, worked out on the fly. NULL if we don't know the regular
+    -- price, 0 if it's not on sale
+    CASE WHEN l.regular_price > 0
+         THEN ROUND((l.regular_price - l.current_price) / l.regular_price * 100)
+    END             AS discount_percent,
     l.currency,
     l.listing_url,
     l.last_checked_at

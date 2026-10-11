@@ -156,7 +156,7 @@ WHERE pa.status = 'active'
 -- matching alerts to triggered, all in one transaction
 -- concept: stored procedure + TRANSACTION
 -- (this one changes data)
-CALL record_price_check(1, 14.99);
+CALL record_price_check(1, 14.99, 19.99);  -- new price, regular price
 
 -- 10. who needs to get notified -- alerts that just got triggered
 -- concept: JOIN
