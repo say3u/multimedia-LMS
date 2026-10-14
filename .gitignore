@@ -17,7 +17,6 @@ instance/
 
 # Node
 frontend/node_modules/
-frontend/dist/
 
 # Env
 .env
