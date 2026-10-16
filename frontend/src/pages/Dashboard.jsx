@@ -47,7 +47,7 @@ export default function Dashboard() {
 
 function Row({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #2d2d4e' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0' }}>
       <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{label}</span>
       <span style={{ color: '#e2e8f0', fontSize: '0.875rem' }}>{value}</span>
     </div>
@@ -55,10 +55,10 @@ function Row({ label, value }) {
 }
 
 const s = {
-  page:    { minHeight: '100vh', background: '#0f0f1a', fontFamily: 'system-ui, sans-serif' },
+  page:    { minHeight: '100vh', background: '#080808', fontFamily: 'system-ui, sans-serif' },
   body:    { display: 'flex', justifyContent: 'center', padding: '3rem 2rem' },
-  card:    { background: '#1a1a2e', border: '1px solid #2d2d4e', borderRadius: 12, padding: '2.5rem', width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1rem' },
+  card:    { background: '#111', borderRadius: 12, padding: '2.5rem', width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1rem' },
   welcome: { color: '#e2e8f0', margin: 0, fontSize: '1.05rem' },
-  accent:  { color: '#a78bfa' },
+  accent:  { color: '#2fd06a' },
   info:    { display: 'flex', flexDirection: 'column' },
 }
