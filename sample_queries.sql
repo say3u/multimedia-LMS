@@ -159,14 +159,21 @@ SELECT DISTINCT
     g.title,
     p.name AS platform,
     l.last_checked_at
-FROM price_alerts pa
-JOIN notification_categories nc ON nc.category_id = pa.category_id
-JOIN listings l  ON l.game_id = pa.game_id
-JOIN games g     ON g.game_id = l.game_id
-JOIN platforms p ON p.platform_id = l.platform_id
-WHERE pa.status = 'active'
+FROM user_games ug
+JOIN notification_categories nc
+    ON nc.category_id = ug.category_id
+JOIN listings l
+    ON l.game_id = ug.game_id
+JOIN games g
+    ON g.game_id = l.game_id
+JOIN platforms p
+    ON p.platform_id = l.platform_id
+WHERE ug.user_id = 1
+  AND ug.status = 'want_to_play'
+  AND ug.notify_enabled = TRUE
   AND nc.check_interval_minutes IS NOT NULL
-  AND l.last_checked_at < NOW() - INTERVAL nc.check_interval_minutes MINUTE;
+  AND l.last_checked_at <
+      TIMESTAMPADD(MINUTE, -nc.check_interval_minutes, NOW());
 
 -- 9. then for each listing it gets a new price for, it calls this.
 -- logs to price_history, updates listings.current_price, and flips any
@@ -248,3 +255,4 @@ JOIN users borrower ON borrower.user_id = lo.borrower_id
 WHERE lo.status = 'active'
   AND lo.due_at < CURDATE()
 ORDER BY days_overdue DESC;
+
