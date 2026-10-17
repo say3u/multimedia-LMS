@@ -271,6 +271,22 @@ CREATE TABLE IF NOT EXISTS notification_categories (
     UNIQUE KEY uq_user_category_name (user_id, name)
 ) ENGINE=InnoDB;
 
+-- WISHLIST NOTIFICATION SETTINGS
+-- user_games represents each user's wishlist item. These fields connect
+-- the item to an optional notification category, store an optional target
+-- price, and allow notifications to be turned on or off. Keeping these
+-- settings on user_games means a user can track a game without needing
+-- to create a price alert immediately.
+
+ALTER TABLE user_games
+    ADD category_id INT NULL,
+    ADD target_price DECIMAL(8,2) NULL,
+    ADD notify_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD CONSTRAINT fk_user_games_category
+        FOREIGN KEY (category_id)
+        REFERENCES notification_categories(category_id)
+        ON DELETE SET NULL;
+
 -- PRICE_ALERTS TABLE
 -- basically a wishlist entry with a target price attached -- "let me
 -- know when this game drops to $X." every alert belongs to one of the
