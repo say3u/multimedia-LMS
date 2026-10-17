@@ -20,19 +20,36 @@ USE game_tracker;
 -- concept: JOIN (4 tables) + the current_best_prices view
 -- LEFT JOIN on the view so games with no price yet still show up (just
 -- with a null best_price) instead of silently disappearing
+-- 1. A user's wishlist with the best current price
 SELECT
+    ug.user_game_id,
+    g.game_id,
     g.title,
-    nc.name           AS category,
-    pa.target_price,
-    cbp.current_price AS best_price,
-    cbp.platform_name AS cheapest_on,
-    pa.status
-FROM price_alerts pa
-JOIN games g                    ON g.game_id = pa.game_id
-JOIN notification_categories nc ON nc.category_id = pa.category_id
-LEFT JOIN current_best_prices cbp ON cbp.game_id = pa.game_id
-WHERE pa.user_id = 1
-ORDER BY nc.name, g.title;
+    ug.status,
+    nc.name              AS category,
+    ug.target_price,
+    ug.notify_enabled,
+    cbp.current_price    AS best_price,
+    cbp.platform_name    AS cheapest_on,
+    CASE
+        WHEN ug.target_price IS NOT NULL
+         AND cbp.current_price <= ug.target_price
+        THEN TRUE
+        ELSE FALSE
+    END                  AS target_reached,
+    ug.added_at
+FROM user_games ug
+JOIN games g
+    ON g.game_id = ug.game_id
+LEFT JOIN notification_categories nc
+    ON nc.category_id = ug.category_id
+LEFT JOIN current_best_prices cbp
+    ON cbp.game_id = ug.game_id
+WHERE ug.user_id = 1
+  AND ug.status = 'want_to_play'
+ORDER BY
+    nc.name,
+    g.title;
 
 -- 2. alerts that are within $5 of triggering -- "almost at your price"
 -- badge on the wishlist
