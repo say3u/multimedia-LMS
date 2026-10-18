@@ -270,6 +270,37 @@ def update_watchlist(game_id):
     finally:
         cursor.close()
         connection.close()
-        
+
+@app.delete("/api/watchlist/<int:game_id>")
+def remove_from_watchlist(game_id):
+    user_id = 1  # temporary until login is implemented
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            DELETE FROM user_games
+            WHERE user_id = %s
+              AND game_id = %s
+              AND status = 'want_to_play'
+            """,
+            (user_id, game_id),
+        )
+
+        if cursor.rowcount == 0:
+            connection.rollback()
+            return jsonify({
+                "error": "Game is not on the watchlist"
+            }), 404
+
+        connection.commit()
+        return "", 204
+
+    finally:
+        cursor.close()
+        connection.close()
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
