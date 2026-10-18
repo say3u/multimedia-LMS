@@ -76,3 +76,21 @@ LEFT JOIN notification_categories nc
     ON nc.category_id = ug.category_id
 WHERE u.username = 'demo'
   AND g.match_title = 'test game';
+
+USE game_tracker;
+
+SELECT
+    n.notification_id,
+    g.title,
+    ph.price,
+    n.target_price,
+    n.triggered_at
+FROM notifications n
+JOIN user_games ug
+    ON ug.user_game_id = n.user_game_id
+JOIN games g
+    ON g.game_id = ug.game_id
+JOIN price_history ph
+    ON ph.history_id = n.price_history_id
+WHERE ug.user_id = 1
+ORDER BY n.triggered_at DESC;

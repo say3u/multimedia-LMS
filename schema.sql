@@ -252,6 +252,31 @@ CREATE TABLE IF NOT EXISTS price_history (
     FOREIGN KEY (listing_id) REFERENCES listings(listing_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- NOTIFICATION HISTORY
+-- Wishlist settings stay in user_games. Each row here records an
+-- alert generated from a specific price check.
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id  INT AUTO_INCREMENT PRIMARY KEY,
+    user_game_id     INT NOT NULL,
+    price_history_id INT NOT NULL,
+    target_price     DECIMAL(8,2),
+    triggered_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_read          BOOLEAN NOT NULL DEFAULT FALSE,
+
+    FOREIGN KEY (user_game_id)
+        REFERENCES user_games(user_game_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (price_history_id)
+        REFERENCES price_history(history_id)
+        ON DELETE CASCADE,
+
+    UNIQUE KEY uq_notification_check (
+        user_game_id,
+        price_history_id
+    )
+) ENGINE=InnoDB;
+
 -- NOTIFICATION_CATEGORIES TABLE
 -- this replaces the notify_level enum we had before, based on a
 -- teammate's idea that's honestly a better version of it -- instead of
@@ -388,7 +413,8 @@ CREATE PROCEDURE record_price_check (
     IN p_regular_price DECIMAL(8,2)  -- the non-sale price, can be NULL if the store doesn't say
 )
 BEGIN
-    DECLARE v_game_id INT;
+    DECLARE v_game_id INT DEFAULT NULL;
+    DECLARE v_history_id INT DEFAULT NULL;
 
     -- same deal as borrow_item. without this, if say the listings UPDATE
     -- failed, the price_history row would already be in there and the
@@ -402,13 +428,28 @@ BEGIN
 
     START TRANSACTION;
 
-    SELECT game_id INTO v_game_id
-    FROM listings
-    WHERE listing_id = p_listing_id
-    FOR UPDATE;
+    IF p_new_price IS NULL
+       OR p_new_price < 0
+       OR p_regular_price < 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Prices must be non-negative.';
+    END IF;
+
+    SELECT g.game_id INTO v_game_id
+    FROM games g
+    JOIN listings l ON l.game_id = g.game_id
+    WHERE l.listing_id = p_listing_id
+     FOR UPDATE;
+
+    IF v_game_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Listing not found.';
+    END IF;
 
     INSERT INTO price_history (listing_id, price, recorded_at)
     VALUES (p_listing_id, p_new_price, NOW());
+
+    SET v_history_id = LAST_INSERT_ID();
 
     UPDATE listings
     SET current_price = p_new_price,
@@ -416,15 +457,34 @@ BEGIN
         last_checked_at = NOW()
     WHERE listing_id = p_listing_id;
 
-    -- anybody watching this game for a price at or below what it just
-    -- dropped to gets their alert flipped to triggered
-    UPDATE price_alerts
-    SET status = 'triggered', triggered_at = NOW()
-    WHERE game_id = v_game_id
-      AND status = 'active'
-      AND target_price >= p_new_price;
+        -- Notify when the target is reached, then only for lower prices.
+    INSERT INTO notifications
+        (user_game_id, price_history_id, target_price)
+    SELECT
+        ug.user_game_id,
+        v_history_id,
+        ug.target_price
+    FROM user_games ug
+    JOIN notification_categories nc
+        ON nc.category_id = ug.category_id
+        AND nc.user_id = ug.user_id
+    LEFT JOIN notifications previous
+        ON previous.user_game_id = ug.user_game_id
+        AND previous.target_price = ug.target_price
+    LEFT JOIN price_history previous_price
+        ON previous_price.history_id = previous.price_history_id
+    WHERE ug.game_id = v_game_id
+      AND ug.status = 'want_to_play'
+      AND ug.notify_enabled = TRUE
+      AND ug.target_price IS NOT NULL
+      AND p_new_price <= ug.target_price
+      AND nc.check_interval_minutes > 0
+    GROUP BY ug.user_game_id, ug.target_price
+    HAVING MIN(previous_price.price) IS NULL
+        OR p_new_price < MIN(previous_price.price)
+    ORDER BY ug.user_game_id;
 
-    COMMIT;
+COMMIT;
 END //
 DELIMITER ;
 
