@@ -1,6 +1,7 @@
 import re
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import Enum as SAEnum
 from .extensions import db
 
 
@@ -63,4 +64,30 @@ class Game(db.Model):
             'synopsis':     self.synopsis,
             'icon_url':     self.icon_url,
             'banner_url':   self.banner_url,
+        }
+
+
+class UserGame(db.Model):
+    __tablename__ = 'user_games'
+
+    user_game_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.user_id',  ondelete='CASCADE'), nullable=False)
+    game_id      = db.Column(db.Integer, db.ForeignKey('games.game_id',  ondelete='CASCADE'), nullable=False)
+    status       = db.Column(SAEnum('want_to_play', 'playing', 'completed', name='user_game_status'), nullable=False, default='want_to_play')
+    rating       = db.Column(db.SmallInteger)
+    notes        = db.Column(db.Text)
+    added_at     = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at   = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'game_id', name='uq_user_game'),)
+
+    def to_dict(self):
+        return {
+            'user_game_id': self.user_game_id,
+            'user_id':      self.user_id,
+            'game_id':      self.game_id,
+            'status':       self.status,
+            'rating':       self.rating,
+            'notes':        self.notes,
+            'added_at':     self.added_at.isoformat(),
         }

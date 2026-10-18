@@ -1,15 +1,31 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Nav from '../components/Nav.jsx'
+import AddGameModal from '../components/AddGameModal.jsx'
+
+const TAB_STATUSES = {
+  Watchlist:   ['want_to_play'],
+  'My Library': ['playing', 'completed'],
+}
+
+const STATUS_LABEL = {
+  want_to_play: 'Want to Play',
+  playing:      'Playing',
+  completed:    'Completed',
+}
 
 export default function Dashboard() {
-  const navigate     = useNavigate()
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || 'null'))
+  const navigate             = useNavigate()
+  const [user, setUser]      = useState(JSON.parse(localStorage.getItem('user') || 'null'))
+  const [searchParams]       = useSearchParams()
+  const tab                  = searchParams.get('tab') || 'Watchlist'
+  const [showAddGame, setShowAddGame] = useState(false)
+  const [games, setGames]    = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) { navigate('/login'); return }
-
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         if (res.status === 401 || res.status === 422) {
@@ -24,41 +40,80 @@ export default function Dashboard() {
       .catch(() => {})
   }, [navigate])
 
+  const fetchGames = useCallback(() => {
+    const token    = localStorage.getItem('token')
+    const statuses = TAB_STATUSES[tab] || []
+    const qs       = statuses.map((s) => `status=${s}`).join('&')
+    setLoading(true)
+    fetch(`/api/games/user-games?${qs}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => { setGames(data.user_games || []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [tab])
+
+  useEffect(() => { if (user) fetchGames() }, [user, fetchGames])
+
   if (!user) return null
+
+  const addLabel = tab === 'Watchlist' ? 'Add to Watchlist' : 'Add to Library'
 
   return (
     <div style={s.page}>
       <Nav />
       <div style={s.body}>
-        <div style={s.card}>
-          <p style={s.welcome}>
-            Welcome back, <strong style={s.accent}>{user.username}</strong>!
-          </p>
-          <div style={s.info}>
-            <Row label="Email"        value={user.email} />
-            <Row label="Member since" value={new Date(user.created_at).toLocaleDateString()} />
-            <Row label="User ID"      value={`#${user.user_id}`} />
+        {!loading && (
+          <div style={s.content}>
+            <div style={s.grid}>
+              {games.map((ug) => (
+                <GameCard key={ug.user_game_id} ug={ug} />
+              ))}
+              <button style={s.emptyCard} onClick={() => setShowAddGame(true)}>
+                <span style={s.emptyPlus}>+</span>
+                <span style={s.emptyLabel}>{addLabel}</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {showAddGame && (
+          <AddGameModal onClose={() => { setShowAddGame(false); fetchGames() }} />
+        )}
       </div>
     </div>
   )
 }
 
-function Row({ label, value }) {
+function GameCard({ ug }) {
+  const { game, status } = ug
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0' }}>
-      <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{label}</span>
-      <span style={{ color: '#e2e8f0', fontSize: '0.875rem' }}>{value}</span>
+    <div style={s.card}>
+      {game.icon_url
+        ? <img src={game.icon_url} alt={game.title} style={s.cover} />
+        : <div style={s.coverPlaceholder} />
+      }
+      <div style={s.cardBody}>
+        <p style={s.cardTitle}>{game.title}</p>
+        {game.release_year && <p style={s.cardMeta}>{game.release_year}</p>}
+        <span style={s.badge}>{STATUS_LABEL[status] || status}</span>
+      </div>
     </div>
   )
 }
 
+
 const s = {
-  page:    { minHeight: '100vh', background: '#080808', fontFamily: 'system-ui, sans-serif' },
-  body:    { display: 'flex', justifyContent: 'center', padding: '3rem 2rem' },
-  card:    { background: '#111', borderRadius: 12, padding: '2.5rem', width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1rem' },
-  welcome: { color: '#e2e8f0', margin: 0, fontSize: '1.05rem' },
-  accent:  { color: '#2fd06a' },
-  info:    { display: 'flex', flexDirection: 'column' },
+  page:            { minHeight: '100vh', background: '#080808', fontFamily: 'system-ui, sans-serif' },
+  body:            { display: 'flex', justifyContent: 'center', padding: '3rem 2rem' },
+  content:         { width: '100%', maxWidth: 900, display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+  grid:            { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' },
+  card:            { background: '#111', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+  cover:           { width: '100%', aspectRatio: '2/3', objectFit: 'cover' },
+  coverPlaceholder:{ width: '100%', aspectRatio: '2/3', background: '#1e1e1e' },
+  cardBody:        { padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' },
+  cardTitle:       { color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cardMeta:        { color: '#94a3b8', fontSize: '0.7rem', margin: 0 },
+  badge:           { alignSelf: 'flex-start', background: '#2fd06a18', color: '#2fd06a', fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 20, marginTop: '0.25rem' },
+  emptyCard:       { background: 'none', border: '2px dashed #2a2a2a', borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', aspectRatio: '2/3', width: '100%' },
+  emptyPlus:       { color: '#3a3a3a', fontSize: '1.75rem', lineHeight: 1 },
+  emptyLabel:      { color: '#3a3a3a', fontSize: '0.75rem', fontFamily: 'system-ui, sans-serif', fontWeight: 600, textAlign: 'center', padding: '0 0.5rem' },
 }

@@ -56,7 +56,7 @@ export default function Register() {
             <div style={s.field}>
               <label style={s.label}>Username</label>
               <input style={s.input} type="text" required minLength={3} maxLength={50}
-                autoComplete="username" placeholder="coolplayer99"
+                autoComplete="username" placeholder="username123"
                 value={form.username} onChange={set('username')} />
             </div>
 
