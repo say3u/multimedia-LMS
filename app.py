@@ -375,5 +375,147 @@ def search_games():
         cursor.close()
         connection.close()
 
+@app.get("/api/games/<int:game_id>")
+def get_game(game_id):
+    user_id = 1  # temporary until login is implemented
+    history_range = request.args.get("range", "1Y")
+    ranges = {"3M": -3, "1Y": -12, "All": None}
+
+    if history_range not in ranges:
+        return jsonify({"error": "range must be 3M, 1Y, or All"}), 400
+
+    months = ranges[history_range]
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        # Game details and this user's wishlist settings
+        cursor.execute(
+            """
+            SELECT
+                g.game_id,
+                g.title,
+                g.developer,
+                g.publisher,
+                g.release_year,
+                g.synopsis,
+                ug.user_game_id IS NOT NULL AS on_watchlist,
+                ug.added_at AS watchlist_since,
+                ug.notify_enabled AS notify,
+                ug.target_price
+            FROM games g
+            LEFT JOIN user_games ug
+                ON ug.game_id = g.game_id
+                AND ug.user_id = %s
+                AND ug.status = 'want_to_play'
+            WHERE g.game_id = %s
+            """,
+            (user_id, game_id),
+        )
+
+        game = cursor.fetchone()
+
+        if game is None:
+            return jsonify({"error": "Game not found"}), 404
+
+        game = {
+            key: json_value(value)
+            for key, value in game.items()
+        }
+        game["on_watchlist"] = bool(game["on_watchlist"])
+        game["notify"] = bool(game["notify"])
+        game["platform"] = "PC"
+
+        # Store prices and each store's lowest recorded price
+        cursor.execute(
+            """
+            SELECT
+                p.name AS store,
+                l.current_price AS price,
+                l.regular_price,
+                CASE
+                    WHEN l.regular_price > 0
+                    THEN ROUND(
+                        (l.regular_price - l.current_price)
+                        / l.regular_price * 100
+                    )
+                    WHEN l.regular_price = 0
+                         AND l.current_price = 0
+                    THEN 0
+                END AS discount_percent,
+                l.currency,
+                COALESCE(l.listing_url, gs.source_url) AS url,
+                l.last_checked_at,
+                (
+                    SELECT MIN(ph.price)
+                    FROM price_history ph
+                    WHERE ph.listing_id = l.listing_id
+                ) AS lowest_ever
+            FROM listings l
+            JOIN platforms p
+                ON p.platform_id = l.platform_id
+            LEFT JOIN game_sources gs
+                ON gs.game_id = l.game_id
+                AND gs.platform_id = l.platform_id
+            WHERE l.game_id = %s
+            ORDER BY
+                l.current_price IS NULL,
+                l.current_price,
+                p.name
+            """,
+            (game_id,),
+        )
+
+        stores = [
+            {key: json_value(value) for key, value in row.items()}
+            for row in cursor.fetchall()
+        ]
+
+        game["stores"] = stores
+        game["best"] = next(
+            (store for store in stores if store["price"] is not None),
+            None,
+        )
+
+        recorded_lows = [
+            store["lowest_ever"]
+            for store in stores
+            if store["lowest_ever"] is not None
+        ]
+        game["lowest_ever"] = min(recorded_lows, default=None)
+
+        # Price history for the requested chart range
+        cursor.execute(
+            """
+            SELECT
+                ph.recorded_at AS date,
+                p.name AS store,
+                ph.price
+            FROM price_history ph
+            JOIN listings l
+                ON l.listing_id = ph.listing_id
+            JOIN platforms p
+                ON p.platform_id = l.platform_id
+            WHERE l.game_id = %s
+              AND (
+                  %s IS NULL
+                  OR ph.recorded_at >= TIMESTAMPADD(MONTH, %s, NOW())
+              )
+            ORDER BY ph.recorded_at, ph.history_id
+            """,
+            (game_id, months, months),
+        )
+
+        game["history"] = [
+            {key: json_value(value) for key, value in row.items()}
+            for row in cursor.fetchall()
+        ]
+
+        return jsonify(game)
+
+    finally:
+        cursor.close()
+        connection.close()
+        
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
