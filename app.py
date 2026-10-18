@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import mysql.connector
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -107,6 +107,81 @@ def get_watchlist():
         cursor.close()
         connection.close()
 
+@app.post("/api/watchlist")
+def add_to_watchlist():
+    user_id = 1  # temporary until login is implemented
+    data = request.get_json(silent=True) or {}
 
+    game_id = data.get("game_id")
+    category_id = data.get("category_id")
+    target_price = data.get("target_price")
+    notify_enabled = data.get("notify_enabled", True)
+
+    if not isinstance(game_id, int) or not isinstance(category_id, int):
+        return jsonify({
+            "error": "game_id and category_id are required"
+        }), 400
+
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            "SELECT game_id, title FROM games WHERE game_id = %s",
+            (game_id,),
+        )
+        game = cursor.fetchone()
+
+        if game is None:
+            return jsonify({"error": "Game not found"}), 404
+
+        cursor.execute(
+            """
+            SELECT category_id
+            FROM notification_categories
+            WHERE category_id = %s
+              AND user_id = %s
+            """,
+            (category_id, user_id),
+        )
+
+        if cursor.fetchone() is None:
+            return jsonify({"error": "Category not found"}), 404
+
+        cursor.execute(
+            """
+            INSERT INTO user_games
+                (user_id, game_id, category_id, target_price,
+                 notify_enabled, status)
+            VALUES
+                (%s, %s, %s, %s, %s, 'want_to_play')
+            """,
+            (
+                user_id,
+                game_id,
+                category_id,
+                target_price,
+                notify_enabled,
+            ),
+        )
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Game added to watchlist",
+            "game_id": game_id,
+            "title": game["title"],
+        }), 201
+
+    except mysql.connector.IntegrityError:
+        connection.rollback()
+        return jsonify({
+            "error": "Game is already on the watchlist"
+        }), 409
+
+    finally:
+        cursor.close()
+        connection.close()
+        
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
