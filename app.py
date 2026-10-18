@@ -516,6 +516,70 @@ def get_game(game_id):
     finally:
         cursor.close()
         connection.close()
-        
+
+@app.get("/api/alerts")
+def get_alerts():
+    user_id = 1  # temporary until login is implemented
+
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            """
+            SELECT
+                n.notification_id,
+                g.game_id,
+                g.title,
+                p.name AS store,
+                ph.price,
+                l.currency,
+                n.target_price,
+                NULL AS discount_percent,
+                ph.price <= (
+                    SELECT MIN(earlier.price)
+                    FROM price_history earlier
+                    JOIN listings earlier_listing
+                        ON earlier_listing.listing_id = earlier.listing_id
+                    WHERE earlier_listing.game_id = g.game_id
+                      AND earlier_listing.currency = l.currency
+                      AND earlier.history_id <= ph.history_id
+                ) AS is_lowest_ever,
+                n.triggered_at,
+                n.is_read
+            FROM notifications n
+            JOIN user_games ug
+                ON ug.user_game_id = n.user_game_id
+            JOIN games g
+                ON g.game_id = ug.game_id
+            JOIN price_history ph
+                ON ph.history_id = n.price_history_id
+            JOIN listings l
+                ON l.listing_id = ph.listing_id
+            JOIN platforms p
+                ON p.platform_id = l.platform_id
+            WHERE ug.user_id = %s
+            ORDER BY n.triggered_at DESC, n.notification_id DESC
+            LIMIT 100
+            """,
+            (user_id,),
+        )
+
+        alerts = []
+
+        for row in cursor.fetchall():
+            alert = {
+                key: json_value(value)
+                for key, value in row.items()
+            }
+            alert["is_read"] = bool(alert["is_read"])
+            alert["is_lowest_ever"] = bool(alert["is_lowest_ever"])
+            alerts.append(alert)
+
+        return jsonify({"alerts": alerts})
+
+    finally:
+        cursor.close()
+        connection.close()
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
