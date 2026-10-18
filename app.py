@@ -302,5 +302,78 @@ def remove_from_watchlist(game_id):
         cursor.close()
         connection.close()
 
+@app.get("/api/search")
+def search_games():
+    user_id = 1  # temporary until login is implemented
+    query = request.args.get("q", "").strip()
+
+    if len(query) < 2:
+        return jsonify({
+            "error": "Enter at least 2 characters"
+        }), 400
+
+    # Treat search text literally, including % and _ characters.
+    search_text = (
+        query.replace("!", "!!")
+        .replace("%", "!%")
+        .replace("_", "!_")
+    )
+
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            """
+            SELECT
+                g.game_id,
+                g.title,
+                (
+                    SELECT COUNT(*)
+                    FROM listings l
+                    WHERE l.game_id = g.game_id
+                ) AS stores_found,
+                (
+                    SELECT MIN(l.current_price)
+                    FROM listings l
+                    WHERE l.game_id = g.game_id
+                ) AS best_price,
+                (
+                    SELECT p.name
+                    FROM listings l
+                    JOIN platforms p
+                        ON p.platform_id = l.platform_id
+                    WHERE l.game_id = g.game_id
+                      AND l.current_price IS NOT NULL
+                    ORDER BY l.current_price, p.name
+                    LIMIT 1
+                ) AS best_store,
+                EXISTS (
+                    SELECT 1
+                    FROM user_games ug
+                    WHERE ug.game_id = g.game_id
+                      AND ug.user_id = %s
+                      AND ug.status = 'want_to_play'
+                ) AS on_watchlist
+            FROM games g
+            WHERE g.title LIKE %s ESCAPE '!'
+            ORDER BY g.title, g.game_id
+            LIMIT 20
+            """,
+            (user_id, f"%{search_text}%"),
+        )
+
+        results = cursor.fetchall()
+
+        for game in results:
+            game["best_price"] = json_value(game["best_price"])
+            game["on_watchlist"] = bool(game["on_watchlist"])
+
+        return jsonify({"results": results})
+
+    finally:
+        cursor.close()
+        connection.close()
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
