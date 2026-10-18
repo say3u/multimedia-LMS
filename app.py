@@ -182,6 +182,94 @@ def add_to_watchlist():
     finally:
         cursor.close()
         connection.close()
+
+
+@app.patch("/api/watchlist/<int:game_id>")
+def update_watchlist(game_id):
+    user_id = 1  # temporary until login is implemented
+    data = request.get_json(silent=True) or {}
+
+    allowed_fields = {
+        "category_id",
+        "target_price",
+        "notify_enabled",
+    }
+
+    if not any(field in data for field in allowed_fields):
+        return jsonify({
+            "error": "Provide category_id, target_price, or notify_enabled"
+        }), 400
+
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            """
+            SELECT user_game_id
+            FROM user_games
+            WHERE user_id = %s
+              AND game_id = %s
+              AND status = 'want_to_play'
+            """,
+            (user_id, game_id),
+        )
+
+        if cursor.fetchone() is None:
+            return jsonify({"error": "Game is not on the watchlist"}), 404
+
+        if "category_id" in data and data["category_id"] is not None:
+            cursor.execute(
+                """
+                SELECT category_id
+                FROM notification_categories
+                WHERE category_id = %s
+                  AND user_id = %s
+                """,
+                (data["category_id"], user_id),
+            )
+
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Category not found"}), 404
+
+        updates = []
+        values = []
+
+        if "category_id" in data:
+            updates.append("category_id = %s")
+            values.append(data["category_id"])
+
+        if "target_price" in data:
+            updates.append("target_price = %s")
+            values.append(data["target_price"])
+
+        if "notify_enabled" in data:
+            updates.append("notify_enabled = %s")
+            values.append(data["notify_enabled"])
+
+        values.extend([user_id, game_id])
+
+        cursor.execute(
+            f"""
+            UPDATE user_games
+            SET {", ".join(updates)}
+            WHERE user_id = %s
+              AND game_id = %s
+              AND status = 'want_to_play'
+            """,
+            values,
+        )
+
+        connection.commit()
+
+        return jsonify({
+            "message": "Watchlist item updated",
+            "game_id": game_id,
+        })
+
+    finally:
+        cursor.close()
+        connection.close()
         
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
