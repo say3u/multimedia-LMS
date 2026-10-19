@@ -70,8 +70,8 @@ export default function Nav() {
           </div>
         ) : (
           <>
-            <Link to="/login"    style={s.link}>Sign in</Link>
-            <Link to="/register" style={s.cta}>Register</Link>
+            <Link to="/about" style={s.link}>About Us</Link>
+            <Link to="/login" style={s.cta}>Sign in</Link>
           </>
         )}
       </div>

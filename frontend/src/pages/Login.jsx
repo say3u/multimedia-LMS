@@ -73,7 +73,7 @@ export default function Login() {
 
           <p style={s.foot}>
             No account?{' '}
-            <Link to="/register" style={s.link}>Create one free</Link>
+            <Link to="/register" style={s.link}>Create one</Link>
           </p>
 
         </form>

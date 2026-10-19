@@ -6,6 +6,9 @@ const LINKS = {
     { label: 'Features',  to: '/#features' },
     { label: 'Pricing',   to: '/#pricing'  },
   ],
+  Company: [
+    { label: 'About',  to: '/about' },
+  ],
   Account: [
     { label: 'Sign up',  to: '/register' },
     { label: 'Sign in',  to: '/login'    },
