@@ -43,10 +43,17 @@ weekly) so you only get pinged about what you actually care about.
    **If you already ran an older version:** the games table changed
    (Oct 11), so run `DROP DATABASE game_tracker;` first, then run
    schema.sql again, then re-run the import scripts.
-2. `pip install requests mysql-connector-python python-dotenv`
+2. `python -m pip install flask requests mysql-connector-python python-dotenv`
 3. Copy `.env.example` to `.env` and fill in your own MySQL password.
-4. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py`) to
+4. Run `tests/testwishlist.sql` in MySQL Workbench to create the demo user,
+   notification category, and test wishlist item.
+6. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py`) to
    pull sample game + pricing data in.
+7. Start the flask backend with `python app.py`
+8. Endpoints are viewable with
+   - http://127.0.0.1:5000/api/watchlist
+   - http://127.0.0.1:5000/api/alerts
+   - http://127.0.0.1:5000/api/search?q=hollow
 
 ## Status
 Phase 1 - schema built and tested, Steam import pipeline working
