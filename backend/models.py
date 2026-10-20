@@ -5,6 +5,38 @@ from sqlalchemy import Enum as SAEnum
 from .extensions import db
 
 
+class Platform(db.Model):
+    __tablename__ = 'platforms'
+
+    platform_id   = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name          = db.Column(db.String(100), nullable=False, unique=True)
+    platform_type = db.Column(SAEnum('pc', 'console', 'vr', 'mobile', 'mods', name='platform_type_enum'), nullable=False, default='pc')
+
+
+class Listing(db.Model):
+    __tablename__ = 'listings'
+
+    listing_id    = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    game_id       = db.Column(db.Integer, db.ForeignKey('games.game_id', ondelete='CASCADE'), nullable=False)
+    platform_id   = db.Column(db.Integer, db.ForeignKey('platforms.platform_id', ondelete='CASCADE'), nullable=False)
+    current_price = db.Column(db.Numeric(8, 2))
+    regular_price = db.Column(db.Numeric(8, 2))
+    currency      = db.Column(db.String(3), nullable=False, default='USD')
+    listing_url   = db.Column(db.String(500))
+    last_checked_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    platform = db.relationship('Platform', backref='listings')
+
+
+class PriceHistory(db.Model):
+    __tablename__ = 'price_history'
+
+    history_id  = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    listing_id  = db.Column(db.Integer, db.ForeignKey('listings.listing_id', ondelete='CASCADE'), nullable=False)
+    price       = db.Column(db.Numeric(8, 2), nullable=False)
+    recorded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def _make_match_title(title):
     return re.sub(r'[^a-z0-9 ]', '', title.lower()).strip()
 

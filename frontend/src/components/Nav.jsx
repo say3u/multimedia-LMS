@@ -9,7 +9,14 @@ export default function Nav() {
   const [searchParams, setSearchParams] = useSearchParams()
   const user              = JSON.parse(localStorage.getItem('user') || 'null')
   const [open, setOpen]   = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const menuRef           = useRef(null)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const onDashboard = pathname === '/dashboard'
   const activeTab   = searchParams.get('tab') || 'Watchlist'
@@ -35,7 +42,7 @@ export default function Nav() {
     : '?'
 
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, ...(scrolled ? s.navScrolled : {}) }}>
       <div style={s.left}>
         <Link to={user ? '/dashboard' : '/'} style={s.brand}>
           <img src="/logomark.png" alt="GameBuddy" style={s.brandIcon} />
@@ -81,7 +88,8 @@ export default function Nav() {
 
 
 const s = {
-  nav:       { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'transparent', position: 'sticky', top: 0, zIndex: 10 },
+  nav:       { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 2rem', background: 'transparent', position: 'sticky', top: 0, zIndex: 10, transition: 'background 0.2s ease, backdrop-filter 0.2s ease, box-shadow 0.2s ease', isolation: 'isolate' },
+  navScrolled: { background: 'rgba(8,8,8,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: '0 1px 0 rgba(255,255,255,0.06)' },
   left:      { display: 'flex', alignItems: 'center', gap: '2rem' },
   brand:     { textDecoration: 'none', display: 'flex', alignItems: 'center' },
   tabs:      { display: 'flex', gap: '0.25rem' },
