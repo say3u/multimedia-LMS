@@ -22,7 +22,7 @@ const CheckIcon = ({ size = 12, color = 'currentColor' }) => (
 const H      = 40
 const R      = 8
 const BORDER = '1px solid rgba(255,255,255,0.1)'
-const BG     = 'rgba(255,255,255,0.04)'
+const BG     = 'rgba(12,12,12,0.55)'
 const FONT   = { fontSize: '0.85rem', fontFamily: 'system-ui, sans-serif', color: '#e2e8f0' }
 
 /* ── Click-outside hook ─────────────────────────────────────────── */
@@ -244,6 +244,8 @@ const c = {
     flex: '1 1 240px',
     height: H,
     background: BG,
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     border: BORDER,
     borderRadius: R,
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
@@ -306,6 +308,8 @@ const c = {
     height: H,
     padding: '0 12px',
     background: BG,
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     border: BORDER,
     borderRadius: R,
     cursor: 'pointer',

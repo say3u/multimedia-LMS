@@ -118,11 +118,11 @@ export default function Dashboard() {
 
   return (
     <div style={s.page}>
-      <div style={s.topWave}>
+      <div style={s.topWave} aria-hidden="true">
         <WaveCanvas wrapperStyle={s.waveLayer} />
         <div style={s.waveFade} />
-        <Nav />
       </div>
+      <Nav />
       <div style={s.body}>
         {!loading && (
           <div style={s.content}>
@@ -285,11 +285,11 @@ function GameCard({ ug }) {
 
 
 const s = {
-  page:            { minHeight: '100vh', background: '#080808', fontFamily: 'system-ui, sans-serif' },
-  topWave:         { position: 'relative', overflow: 'hidden', paddingBottom: '1.5rem' },
-  waveLayer:       { pointerEvents: 'none', position: 'absolute', inset: '-4rem 0 0 0', bottom: 0, zIndex: 0, opacity: 0.28, mixBlendMode: 'screen', WebkitMaskImage: 'linear-gradient(180deg, black 0%, black 60%, transparent 100%)', maskImage: 'linear-gradient(180deg, black 0%, black 60%, transparent 100%)' },
-  waveFade:        { pointerEvents: 'none', position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(180deg, rgba(8,8,8,0) 40%, rgba(8,8,8,1) 100%)' },
-  body:            { padding: '1.25rem 4rem 3rem' },
+  page:            { minHeight: '100vh', background: '#080808', fontFamily: 'system-ui, sans-serif', position: 'relative' },
+  topWave:         { position: 'absolute', top: 0, left: 0, right: 0, height: '520px', overflow: 'hidden', pointerEvents: 'none', zIndex: 0 },
+  waveLayer:       { pointerEvents: 'none', position: 'absolute', inset: '-4rem 0 0 0', bottom: 0, zIndex: 0, opacity: 0.22, mixBlendMode: 'screen', WebkitMaskImage: 'linear-gradient(180deg, black 0%, black 55%, transparent 100%)', maskImage: 'linear-gradient(180deg, black 0%, black 55%, transparent 100%)' },
+  waveFade:        { pointerEvents: 'none', position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(180deg, rgba(8,8,8,0) 18%, rgba(8,8,8,0.75) 45%, rgba(8,8,8,1) 62%)' },
+  body:            { padding: '1.25rem 4rem 3rem', position: 'relative', zIndex: 1 },
   content:         { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
   controlsWrap:    { marginBottom: '1.5rem' },
   pageHeader:      { display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '2rem' },
@@ -298,7 +298,7 @@ const s = {
   emptyStateClear: { background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '0.4rem 1rem', color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', fontFamily: 'system-ui, sans-serif', cursor: 'pointer' },
   headerTitle:     { fontSize: 28, fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.2, fontFamily: 'system-ui, sans-serif' },
   headerName:      { color: '#2fd06a' },
-  headerSub:       { fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0, fontFamily: 'system-ui, sans-serif' },
+  headerSub:       { fontSize: 14, color: 'rgba(255,255,255,0.55)', margin: 0, fontFamily: 'system-ui, sans-serif' },
   grid:            { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.25rem' },
   card:            { background: '#111', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid transparent', transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease', cursor: 'pointer' },
   cardHover:       { transform: 'translateY(-4px)', boxShadow: '0 6px 20px rgba(47,208,106,0.08)', borderColor: 'rgba(47,208,106,0.15)' },
