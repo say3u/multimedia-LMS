@@ -1,6 +1,12 @@
+# backend
 flask>=3.0
 flask-sqlalchemy>=3.1
 flask-jwt-extended>=4.6
 pymysql>=1.1
 cryptography>=42.0
 gunicorn>=21.0
+python-dotenv
+
+# import scripts
+requests
+mysql-connector-python

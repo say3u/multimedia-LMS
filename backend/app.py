@@ -1,5 +1,35 @@
 import os
+from urllib.parse import quote_plus
+
+from dotenv import load_dotenv
 from flask import Flask, send_from_directory, jsonify
+
+load_dotenv()  # same .env as the import scripts
+
+
+def database_url():
+    """railway gives us DATABASE_URL (or MYSQL_URL). locally we build it
+    from the same DB_HOST / DB_USER / DB_PASSWORD / DB_NAME the import
+    scripts use, so there's only one .env to fill in. no sqlite fallback
+    anymore -- the schema needs mysql (stored procedures, views)"""
+    url = os.environ.get('DATABASE_URL') or os.environ.get('MYSQL_URL')
+    if not url:
+        password = os.environ.get('DB_PASSWORD')
+        if not password:
+            raise RuntimeError(
+                'Set DATABASE_URL, or copy .env.example to .env and fill in '
+                'DB_PASSWORD (same as for the import scripts).'
+            )
+        url = 'mysql+pymysql://{}:{}@{}/{}'.format(
+            quote_plus(os.environ.get('DB_USER', 'root')),
+            quote_plus(password),
+            os.environ.get('DB_HOST', 'localhost'),
+            os.environ.get('DB_NAME', 'game_tracker'),
+        )
+    # Railway's MySQL plugin may give mysql:// — SQLAlchemy needs mysql+pymysql://
+    if url.startswith('mysql://'):
+        url = url.replace('mysql://', 'mysql+pymysql://', 1)
+    return url
 
 
 def create_app():
@@ -11,17 +41,9 @@ def create_app():
     app = Flask(__name__)
 
     # ── Config ────────────────────────────────────────────────────────────────
-    raw_db_url = (
-        os.environ.get('DATABASE_URL')
-        or os.environ.get('MYSQL_URL')
-        or 'sqlite:///dev.db'
-    )
-    # Railway's MySQL plugin may give mysql:// — SQLAlchemy needs mysql+pymysql://
-    if raw_db_url.startswith('mysql://'):
-        raw_db_url = raw_db_url.replace('mysql://', 'mysql+pymysql://', 1)
-
     app.config.update(
-        SQLALCHEMY_DATABASE_URI=raw_db_url,
+        SQLALCHEMY_DATABASE_URI=database_url(),
+        SQLALCHEMY_ENGINE_OPTIONS={'pool_pre_ping': True},  # survive mysql dropping idle connections
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-flask-secret-change-me'),
         JWT_SECRET_KEY=os.environ.get('JWT_SECRET_KEY', 'dev-jwt-secret-change-me'),
@@ -38,10 +60,13 @@ def create_app():
     app.register_blueprint(auth_bp,  url_prefix='/api/auth')
     app.register_blueprint(games_bp, url_prefix='/api/games')
 
-    # ── Create tables on first run ────────────────────────────────────────────
-    with app.app_context():
-        from . import models  # noqa: F401 — registers models with SQLAlchemy
-        db.create_all()
+    # ── Tables ────────────────────────────────────────────────────────────────
+    # no db.create_all() -- schema.sql is the one source of truth (it has
+    # the views, procedures and constraints the models don't know about).
+    # create_all would quietly make thinner versions of the tables on a
+    # fresh db and then schema.sql's CREATE TABLE IF NOT EXISTS would skip
+    # them. run `python init_db.py` to set up a new database instead
+    from . import models  # noqa: F401 — registers models with SQLAlchemy
 
     # ── Serve React (catch-all must be registered last) ───────────────────────
     @app.route('/', defaults={'path': ''})
