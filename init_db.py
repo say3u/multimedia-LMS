@@ -17,24 +17,9 @@ thing, not real sql, so we split the procedures out by hand
 """
 
 import os
-from urllib.parse import urlparse, unquote
-
 import pymysql
-from dotenv import load_dotenv
 
-load_dotenv()
-
-
-def connection_settings():
-    url = os.environ.get("DATABASE_URL") or os.environ.get("MYSQL_URL")
-    if url:
-        u = urlparse(url.replace("mysql+pymysql://", "mysql://", 1))
-        return dict(host=u.hostname, port=u.port or 3306, user=unquote(u.username),
-                    password=unquote(u.password or ""), database=u.path.lstrip("/"))
-    return dict(host=os.environ.get("DB_HOST", "localhost"),
-                user=os.environ.get("DB_USER", "root"),
-                password=os.environ["DB_PASSWORD"],
-                database=os.environ.get("DB_NAME", "game_tracker"))
+from db_config import connection_settings
 
 
 def statements(sql_text):

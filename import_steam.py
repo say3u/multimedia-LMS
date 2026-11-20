@@ -34,6 +34,7 @@ import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
 
+from db_config import connection_settings
 from game_matching import find_or_create_game
 
 load_dotenv()  # reads the .env file (if present) into the environment
@@ -43,18 +44,9 @@ load_dotenv()  # reads the .env file (if present) into the environment
 # ----------------------------
 # password comes from the .env file now instead of being typed directly
 # in here -- see the setup notes above
-DB_CONFIG = {
-    "host": os.environ.get("DB_HOST", "localhost"),
-    "user": os.environ.get("DB_USER", "root"),
-    "password": os.environ.get("DB_PASSWORD"),
-    "database": os.environ.get("DB_NAME", "game_tracker"),
-}
-
-if not DB_CONFIG["password"]:
-    raise RuntimeError(
-        "DB_PASSWORD is not set. Copy .env.example to .env and fill in "
-        "your actual mysql password there."
-    )
+# connection comes from db_config.py -- DATABASE_URL on railway, otherwise
+# the DB_ values in .env (raises a clear error if the password is missing)
+DB_CONFIG = connection_settings()
 
 # games to pull for testing -- swap these out for whatever, or wire this
 # up to read from a real wishlist table instead of a hardcoded list later
