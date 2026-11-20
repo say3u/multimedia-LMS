@@ -165,7 +165,7 @@ when you wishlisted / bought / started / finished it:
 ## User-added games + mods (phase 2)
 
 for stuff we don't import: mods, obscure / delisted games, other stores.
-**only the person who added a game can edit it or log prices for it.**
+**only the person who added a game can edit it or log prices for it** (team decision).
 
 ### 🔒 `POST /api/games`
 ```json
@@ -197,7 +197,7 @@ importers, so it shows in price history and can trigger people's alerts.
 
 privacy: you can see someone's wishlist / library / activity / reviews if
 their profile is `public`, or `followers` and you follow them. `private`
-= only them. (default is public for now -- team still deciding.)
+= only them. new accounts start as public (team decision).
 
 | | endpoint | returns |
 |---|---|---|

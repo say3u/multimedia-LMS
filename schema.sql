@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- who can see your profile, wishlist, library and activity (phase 2
     -- social). public = anyone, followers = only people following you,
     -- private = just you. defaults to public so the social stuff works
-    -- out of the box -- still an open question for the team
+    -- out of the box (team decided on public by default, nov 2026)
     profile_visibility ENUM('public','followers','private') NOT NULL DEFAULT 'public',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS games (
     banner_url      VARCHAR(500),  -- bigger hero image, for the detail page
     -- phase 2, niche games: NULL for games the import scripts pulled in,
     -- otherwise the user who added it themselves (mods, obscure, delisted,
-    -- games with no store page). only they can edit it for now
+    -- games with no store page). only they can edit it (team decision)
     submitted_by    INT NULL,
     -- a mod points at the game it's for (skyrim mod -> skyrim). this is a
     -- foreign key back to the same table. NULL for normal games

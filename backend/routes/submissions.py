@@ -6,7 +6,7 @@ stuff on stores we don't import from. they live in the same games table
 as imported games (submitted_by says who added it), so they show up in
 search, can go on wishlists, and get price alerts like anything else.
 
-open question from the design doc was "who can edit them?" -- for now
+who can edit them? (open question in the design doc) -- the team decided
 only the person who submitted it can edit it or log prices for it.
 easy to loosen later (e.g. let anyone suggest a price).
 """
