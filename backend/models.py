@@ -114,6 +114,7 @@ class UserGame(db.Model):
     # notification_categories, and schema.sql already enforces the FK
     category_id    = db.Column(db.Integer)
     target_price   = db.Column(db.Numeric(8, 2))
+    min_price      = db.Column(db.Numeric(8, 2))
     notify_enabled = db.Column(db.Boolean, nullable=False, default=True)
     # library info (phase 1.5) -- where you own it, what you paid, when
     owned_platform_id = db.Column(db.Integer)

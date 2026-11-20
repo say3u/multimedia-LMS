@@ -115,6 +115,9 @@ CREATE TABLE IF NOT EXISTS user_games (
     -- the old ALTER TABLE failed with "duplicate column" the 2nd time)
     category_id     INT NULL,
     target_price    DECIMAL(8,2) NULL,
+    -- optional lower limit, so an alert can be "between $min and $target"
+    -- instead of just "under $target" (phase 2). NULL = no lower limit
+    min_price       DECIMAL(8,2) NULL,
     notify_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
     -- library info for games you own (all optional): which store you
     -- have it on, what you paid, and when. the "my library" page shows
@@ -130,6 +133,7 @@ CREATE TABLE IF NOT EXISTS user_games (
     CONSTRAINT fk_user_games_owned_platform FOREIGN KEY (owned_platform_id)
         REFERENCES platforms(platform_id) ON DELETE SET NULL,
     CHECK (paid_price IS NULL OR paid_price >= 0),
+    CHECK (min_price IS NULL OR target_price IS NULL OR min_price <= target_price),
     UNIQUE KEY uq_user_game (user_id, game_id)
 ) ENGINE=InnoDB;
 
@@ -493,6 +497,7 @@ BEGIN
       AND ug.notify_enabled = TRUE
       AND ug.target_price IS NOT NULL
       AND p_new_price <= ug.target_price
+      AND (ug.min_price IS NULL OR p_new_price >= ug.min_price)  -- "between" alerts
       AND nc.check_interval_minutes > 0
     GROUP BY ug.user_game_id, ug.target_price
     HAVING MIN(previous_price.price) IS NULL

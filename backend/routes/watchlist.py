@@ -53,6 +53,18 @@ def default_category_id(user_id):
     return row["category_id"]
 
 
+def check_prices(target_price, min_price):
+    """price alert limits: both optional, both >= 0, and min can't be
+    above target (the schema has a CHECK for that too, this just gives a
+    nicer error). returns an error message or None"""
+    for name, value in (("target_price", target_price), ("min_price", min_price)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0):
+            return f"{name} must be a number >= 0"
+    if min_price is not None and target_price is not None and min_price > target_price:
+        return "min_price can't be higher than target_price"
+    return None
+
+
 def category_belongs_to(category_id, user_id):
     return query(
         "SELECT 1 FROM notification_categories WHERE category_id = %s AND user_id = %s",
@@ -97,6 +109,7 @@ def get_watchlist():
             nc.name AS category_name,
             nc.check_interval_minutes,
             ug.target_price,
+            ug.min_price,
             ug.notify_enabled,
             ug.added_at,
             cbp.current_price AS best_price,
@@ -133,6 +146,7 @@ def get_watchlist():
                 "check_interval_minutes": row["check_interval_minutes"],
             },
             "target_price": row["target_price"],
+            "min_price": row["min_price"],
             "notify_enabled": bool(row["notify_enabled"]),
             "notify": bool(row["notify_enabled"]),
             "best_price": row["best_price"],
@@ -159,10 +173,14 @@ def add_to_watchlist():
     game_id = data.get("game_id")
     category_id = data.get("category_id")
     target_price = data.get("target_price")
+    min_price = data.get("min_price")
     notify_enabled = data.get("notify_enabled", True)
 
     if not isinstance(game_id, int):
         return jsonify({"error": "game_id is required"}), 400
+    problem = check_prices(target_price, min_price)
+    if problem:
+        return jsonify({"error": problem}), 400
 
     game = query("SELECT game_id, title FROM games WHERE game_id = %s", (game_id,), one=True)
     if game is None:
@@ -179,12 +197,12 @@ def add_to_watchlist():
         execute(
             """
             INSERT INTO user_games
-                (user_id, game_id, category_id, target_price,
+                (user_id, game_id, category_id, target_price, min_price,
                  notify_enabled, status)
             VALUES
-                (%s, %s, %s, %s, %s, 'want_to_play')
+                (%s, %s, %s, %s, %s, %s, 'want_to_play')
             """,
-            (user_id, game_id, category_id, target_price, notify_enabled),
+            (user_id, game_id, category_id, target_price, min_price, notify_enabled),
         )
     except IntegrityError:
         return jsonify({"error": "Game is already on the watchlist"}), 409
@@ -202,21 +220,29 @@ def update_watchlist(game_id):
     user_id = current_user_id()
     data = request.get_json(silent=True) or {}
 
-    allowed_fields = ("category_id", "target_price", "notify_enabled")
+    allowed_fields = ("category_id", "target_price", "min_price", "notify_enabled")
     if not any(field in data for field in allowed_fields):
         return jsonify({
-            "error": "Provide category_id, target_price, or notify_enabled"
+            "error": "Provide category_id, target_price, min_price, or notify_enabled"
         }), 400
 
     on_list = query(
         """
-        SELECT user_game_id FROM user_games
+        SELECT user_game_id, target_price, min_price FROM user_games
         WHERE user_id = %s AND game_id = %s AND status = 'want_to_play'
         """,
         (user_id, game_id), one=True,
     )
     if on_list is None:
         return jsonify({"error": "Game is not on the watchlist"}), 404
+
+    # check the range using the values after this update
+    problem = check_prices(
+        data.get("target_price", on_list["target_price"]),
+        data.get("min_price", on_list["min_price"]),
+    )
+    if problem:
+        return jsonify({"error": problem}), 400
 
     if data.get("category_id") is not None and not category_belongs_to(data["category_id"], user_id):
         return jsonify({"error": "Category not found"}), 404
