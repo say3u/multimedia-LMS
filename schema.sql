@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS users (
     username        VARCHAR(50)  NOT NULL UNIQUE,
     email           VARCHAR(255) NOT NULL UNIQUE,
     password_hash   VARCHAR(255) NOT NULL,
+    -- who can see your profile, wishlist, library and activity (phase 2
+    -- social). public = anyone, followers = only people following you,
+    -- private = just you. defaults to public so the social stuff works
+    -- out of the box -- still an open question for the team
+    profile_visibility ENUM('public','followers','private') NOT NULL DEFAULT 'public',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -195,6 +200,26 @@ CREATE TABLE IF NOT EXISTS follows (
     CHECK (follower_id <> followee_id)
 ) ENGINE=InnoDB;
 
+-- ACTIVITY_EVENTS TABLE
+-- the friends feed (phase 2 social). one row per thing someone did:
+-- wishlisted a game, bought it (moved it to their library), started it,
+-- finished it, reviewed it. the feed is just follows joined against
+-- this, newest first. filled in by triggers (bottom of the file), so the
+-- backend never has to remember to log anything.
+-- the (user_id, created_at) index is what makes "latest events from the
+-- people I follow" fast -- this is one of our benchmark experiments
+CREATE TABLE IF NOT EXISTS activity_events (
+    event_id        INT AUTO_INCREMENT PRIMARY KEY,
+    user_id         INT NOT NULL,
+    event_type      ENUM('wishlisted','bought','started','finished','reviewed') NOT NULL,
+    game_id         INT NOT NULL,
+    detail          VARCHAR(255),  -- extra info, like the rating for a review
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
+    KEY idx_user_time (user_id, created_at)
+) ENGINE=InnoDB;
+
 -- LOANS TABLE
 -- for lending a physical copy/cartridge to a friend. kept this from the
 -- original idea since it's still a real thing people do with games. this
@@ -226,7 +251,8 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
-    UNIQUE KEY uq_user_review (user_id, game_id)
+    UNIQUE KEY uq_user_review (user_id, game_id),
+    CHECK (rating BETWEEN 1 AND 10)
 ) ENGINE=InnoDB;
 
 -- TAGS + GAME_TAGS
@@ -518,7 +544,7 @@ END //
 DELIMITER ;
 
 -- ============================================
--- STATUS HISTORY TRIGGERS
+-- STATUS HISTORY + ACTIVITY FEED TRIGGERS
 -- ============================================
 -- status_history was in the schema from the start but nothing ever wrote
 -- to it. these triggers fill it in automatically every time a game is
@@ -533,6 +559,13 @@ FOR EACH ROW
 BEGIN
     INSERT INTO status_history (user_game_id, old_status, new_status)
     VALUES (NEW.user_game_id, NULL, NEW.status);
+
+    -- and the friends feed (status -> what it means to your friends)
+    INSERT INTO activity_events (user_id, event_type, game_id)
+    VALUES (NEW.user_id,
+            CASE NEW.status WHEN 'want_to_play' THEN 'wishlisted' WHEN 'backlog' THEN 'bought'
+                            WHEN 'playing' THEN 'started' ELSE 'finished' END,
+            NEW.game_id);
 END //
 
 DROP TRIGGER IF EXISTS trg_user_games_status_update //
@@ -543,7 +576,23 @@ BEGIN
     IF NOT (OLD.status <=> NEW.status) THEN
         INSERT INTO status_history (user_game_id, old_status, new_status)
         VALUES (NEW.user_game_id, OLD.status, NEW.status);
+
+        INSERT INTO activity_events (user_id, event_type, game_id)
+        VALUES (NEW.user_id,
+                CASE NEW.status WHEN 'want_to_play' THEN 'wishlisted' WHEN 'backlog' THEN 'bought'
+                                WHEN 'playing' THEN 'started' ELSE 'finished' END,
+                NEW.game_id);
     END IF;
+END //
+
+-- writing a review shows up in your friends' feeds too (with the rating)
+DROP TRIGGER IF EXISTS trg_reviews_activity //
+CREATE TRIGGER trg_reviews_activity
+AFTER INSERT ON reviews
+FOR EACH ROW
+BEGIN
+    INSERT INTO activity_events (user_id, event_type, game_id, detail)
+    VALUES (NEW.user_id, 'reviewed', NEW.game_id, CONCAT(NEW.rating, '/10'));
 END //
 DELIMITER ;
 
@@ -592,6 +641,7 @@ WHERE l.current_price = (
 -- lists            - custom lists people make
 -- list_items       - connects lists to games
 -- follows          - who's following who
+-- activity_events  - the friends feed, filled by triggers
 -- loans            - lending physical copies between users (transaction #1)
 -- reviews          - public reviews
 -- tags             - labels like vr, mobile, mod
