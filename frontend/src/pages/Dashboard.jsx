@@ -7,11 +7,12 @@ import DashboardControls from '../components/DashboardControls.jsx'
 
 const TAB_STATUSES = {
   Watchlist:   ['want_to_play'],
-  'My Library': ['playing', 'completed'],
+  'My Library': ['backlog', 'playing', 'completed'],
 }
 
 const STATUS_LABEL = {
   want_to_play: 'Want to Play',
+  backlog:      'Own it, not played yet',
   playing:      'Playing',
   completed:    'Completed',
 }

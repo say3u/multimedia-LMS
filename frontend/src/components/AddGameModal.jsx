@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 
 const STATUSES = [
   { value: 'want_to_play', label: 'Want to Play' },
+  { value: 'backlog',      label: 'Own it, not played yet' },  // phase 1.5: owned games aren't price tracked
   { value: 'playing',      label: 'Playing'      },
   { value: 'completed',    label: 'Completed'     },
 ]
