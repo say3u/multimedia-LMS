@@ -56,6 +56,18 @@ CREATE TABLE IF NOT EXISTS games (
 -- is cheap to compute with a query against listings/price_history
 -- instead of storing (and risking it going stale)
 
+-- PLATFORMS TABLE
+-- the stores a game can be bought from -- steam, playstation store, xbox,
+-- epic, gog, nintendo eshop, etc. small lookup table.
+-- platform_type says what KIND of store it is, so you can search stuff
+-- like "only show me mobile" or "only vr stores" (meta quest store,
+-- app store, nexus mods, etc) without hardcoding store names
+CREATE TABLE IF NOT EXISTS platforms (
+    platform_id     INT AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(100) NOT NULL UNIQUE,
+    platform_type   ENUM('pc','console','vr','mobile','mods') NOT NULL DEFAULT 'pc'
+) ENGINE=InnoDB;
+
 -- NOTIFICATION_CATEGORIES TABLE
 -- this replaces the notify_level enum we had before, based on a
 -- teammate's idea that's honestly a better version of it -- instead of
@@ -84,7 +96,11 @@ CREATE TABLE IF NOT EXISTS user_games (
     user_game_id    INT AUTO_INCREMENT PRIMARY KEY,
     user_id         INT NOT NULL,
     game_id         INT NOT NULL,
-    status          ENUM('want_to_play','playing','completed') NOT NULL DEFAULT 'want_to_play',
+    -- want_to_play = on the wishlist, prices tracked
+    -- backlog      = you already own it but haven't played it (phase 1.5),
+    --                NOT price tracked -- only want_to_play games are
+    -- playing / completed = owned too, also not tracked
+    status          ENUM('want_to_play','backlog','playing','completed') NOT NULL DEFAULT 'want_to_play',
     rating          TINYINT,               -- 1-10, null until they actually rate it
     notes           TEXT,
     added_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -100,22 +116,33 @@ CREATE TABLE IF NOT EXISTS user_games (
     category_id     INT NULL,
     target_price    DECIMAL(8,2) NULL,
     notify_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
+    -- library info for games you own (all optional): which store you
+    -- have it on, what you paid, and when. the "my library" page shows
+    -- these, and it's also how you'd say "I own it on epic but want it
+    -- on steam" later
+    owned_platform_id INT NULL,
+    paid_price      DECIMAL(8,2) NULL,
+    bought_at       DATE NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
     CONSTRAINT fk_user_games_category FOREIGN KEY (category_id)
         REFERENCES notification_categories(category_id) ON DELETE SET NULL,
+    CONSTRAINT fk_user_games_owned_platform FOREIGN KEY (owned_platform_id)
+        REFERENCES platforms(platform_id) ON DELETE SET NULL,
+    CHECK (paid_price IS NULL OR paid_price >= 0),
     UNIQUE KEY uq_user_game (user_id, game_id)
 ) ENGINE=InnoDB;
 
 -- STATUS_HISTORY TABLE
 -- user_games only remembers your CURRENT status, not what it used to be.
 -- this logs every status change so we can show stuff like "you finished
--- 5 games this month" later
+-- 5 games this month" later. filled in automatically by the
+-- trg_user_games_status_* triggers at the bottom, the app never writes here
 CREATE TABLE IF NOT EXISTS status_history (
     history_id      INT AUTO_INCREMENT PRIMARY KEY,
     user_game_id    INT NOT NULL,
-    old_status      ENUM('want_to_play','playing','completed'),
-    new_status      ENUM('want_to_play','playing','completed') NOT NULL,
+    old_status      ENUM('want_to_play','backlog','playing','completed'),
+    new_status      ENUM('want_to_play','backlog','playing','completed') NOT NULL,
     changed_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_game_id) REFERENCES user_games(user_game_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -213,17 +240,6 @@ CREATE TABLE IF NOT EXISTS game_tags (
 -- NEW STUFF FOR THE PRICE TRACKING SIDE
 -- ============================================
 
--- PLATFORMS TABLE
--- the stores a game can be bought from -- steam, playstation store, xbox,
--- epic, gog, nintendo eshop, etc. small lookup table.
--- platform_type says what KIND of store it is, so you can search stuff
--- like "only show me mobile" or "only vr stores" (meta quest store,
--- app store, nexus mods, etc) without hardcoding store names
-CREATE TABLE IF NOT EXISTS platforms (
-    platform_id     INT AUTO_INCREMENT PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL UNIQUE,
-    platform_type   ENUM('pc','console','vr','mobile','mods') NOT NULL DEFAULT 'pc'
-) ENGINE=InnoDB;
 
 -- LISTINGS TABLE
 -- one row per (game, platform) combo -- basically "this game is sold on
@@ -488,6 +504,36 @@ END //
 DELIMITER ;
 
 -- ============================================
+-- STATUS HISTORY TRIGGERS
+-- ============================================
+-- status_history was in the schema from the start but nothing ever wrote
+-- to it. these triggers fill it in automatically every time a game is
+-- added or its status changes (wishlist -> backlog when you buy it,
+-- backlog -> playing -> completed, etc), so the backend can't forget to.
+-- <=> is mysql's null-safe "equals", so we only log real changes
+DELIMITER //
+DROP TRIGGER IF EXISTS trg_user_games_status_insert //
+CREATE TRIGGER trg_user_games_status_insert
+AFTER INSERT ON user_games
+FOR EACH ROW
+BEGIN
+    INSERT INTO status_history (user_game_id, old_status, new_status)
+    VALUES (NEW.user_game_id, NULL, NEW.status);
+END //
+
+DROP TRIGGER IF EXISTS trg_user_games_status_update //
+CREATE TRIGGER trg_user_games_status_update
+AFTER UPDATE ON user_games
+FOR EACH ROW
+BEGIN
+    IF NOT (OLD.status <=> NEW.status) THEN
+        INSERT INTO status_history (user_game_id, old_status, new_status)
+        VALUES (NEW.user_game_id, OLD.status, NEW.status);
+    END IF;
+END //
+DELIMITER ;
+
+-- ============================================
 -- VIEW: CURRENT_BEST_PRICES
 -- ============================================
 -- shows each game's cheapest current listing across every
@@ -527,7 +573,7 @@ WHERE l.current_price = (
 -- recap:
 -- users            - accounts
 -- games            - the actual games (title, genre, dev/publisher, etc)
--- user_games       - connects users to games + tracks status/rating/notes
+-- user_games       - connects users to games: wishlist (want_to_play) or library (backlog/playing/completed)
 -- status_history   - logs status changes over time
 -- lists            - custom lists people make
 -- list_items       - connects lists to games
