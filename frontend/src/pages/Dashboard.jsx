@@ -228,6 +228,7 @@ function fixCase(str) {
 }
 
 function GameCard({ ug }) {
+  const navigate = useNavigate()
   const { game, status, price_info: p } = ug
   const { title, edition } = splitTitle(game.title)
   const [hovered, setHovered] = useState(false)
@@ -239,6 +240,7 @@ function GameCard({ ug }) {
       style={{ ...s.card, ...(hovered ? s.cardHover : {}) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => navigate(`/games/${game.game_id}`)}
     >
       <div style={s.coverWrap}>
         {game.icon_url

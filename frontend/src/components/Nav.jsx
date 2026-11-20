@@ -47,6 +47,13 @@ export default function Nav() {
         <Link to={user ? '/dashboard' : '/'} style={s.brand}>
           <img src="/logomark.png" alt="GameBuddy" style={s.brandIcon} />
         </Link>
+        {user && (
+          <div style={s.tabs}>
+            {/* phase 2 pages, on every page when signed in */}
+            <Link to="/browse" style={{ ...s.tabBtn, ...s.navLink, ...(pathname === '/browse' ? s.tabActive : {}) }}>Browse</Link>
+            <Link to="/feed" style={{ ...s.tabBtn, ...s.navLink, ...(pathname === '/feed' ? s.tabActive : {}) }}>Feed</Link>
+          </div>
+        )}
         {user && onDashboard && (
           <div style={s.tabs}>
             {TABS.map((t) => (
@@ -70,6 +77,10 @@ export default function Nav() {
             {open && (
               <div style={s.dropdown}>
                 <span style={s.dropName}>{user.username}</span>
+                <hr style={s.divider} />
+                <Link to="/dashboard" style={{ ...s.dropBtn, textDecoration: 'none' }} onClick={() => setOpen(false)}>My games</Link>
+                <Link to={`/u/${user.username}`} style={{ ...s.dropBtn, textDecoration: 'none' }} onClick={() => setOpen(false)}>My profile</Link>
+                <Link to="/games/new" style={{ ...s.dropBtn, textDecoration: 'none' }} onClick={() => setOpen(false)}>Add a game</Link>
                 <hr style={s.divider} />
                 <button style={s.dropBtn} onClick={logout}>Sign out</button>
               </div>
@@ -95,6 +106,7 @@ const s = {
   tabs:      { display: 'flex', gap: '0.25rem' },
   tabBtn:    { background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.9rem', fontFamily: 'system-ui, sans-serif', fontWeight: 600, padding: '0.4rem 0.75rem', borderRadius: 6 },
   tabActive: { color: '#2fd06a', background: '#2fd06a18' },
+  navLink:   { textDecoration: 'none', display: 'inline-block' },
   brandIcon: { height: '2rem', width: 'auto', filter: 'drop-shadow(1px 0 0 white) drop-shadow(-1px 0 0 white) drop-shadow(0 1px 0 white) drop-shadow(0 -1px 0 white)' },
   links:     { display: 'flex', alignItems: 'center', gap: '1rem' },
   link:      { color: '#94a3b8', textDecoration: 'none', fontSize: '0.9rem', fontFamily: 'system-ui, sans-serif', fontWeight: 700 },
