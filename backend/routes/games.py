@@ -6,6 +6,7 @@ from game_matching import normalize_title
 from ..db import query
 from ..extensions import db
 from ..models import Game, UserGame, Listing, Platform, PriceHistory
+from .submissions import game_summary
 from .watchlist import default_category_id
 
 games_bp = Blueprint('games', __name__)
@@ -72,6 +73,11 @@ def get_game(game_id):
     game['on_watchlist'] = bool(game['on_watchlist'])
     game['notify'] = bool(game['notify'])
     game['platform'] = 'PC'
+
+    # user-submitted / mod info + tags (phase 2)
+    extra = game_summary(game_id)
+    for key in ('submitted_by', 'base_game_id', 'base_game_title', 'mod_count', 'tags'):
+        game[key] = extra[key]
 
     # Store prices and each store's lowest recorded price
     stores = query(

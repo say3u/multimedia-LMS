@@ -75,6 +75,8 @@ class Game(db.Model):
     synopsis     = db.Column(db.Text)
     icon_url     = db.Column(db.String(500))
     banner_url   = db.Column(db.String(500))
+    submitted_by = db.Column(db.Integer)   # NULL = imported, else the user who added it
+    base_game_id = db.Column(db.Integer)   # mods point at their game
     created_at   = db.Column(db.DateTime, server_default=db.func.now())
 
     def __init__(self, **kwargs):

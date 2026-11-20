@@ -59,10 +59,12 @@ def create_app():
     from .routes.games import games_bp
     from .routes.watchlist import watchlist_bp
     from .routes.library import library_bp
+    from .routes.submissions import submissions_bp
     app.register_blueprint(auth_bp,  url_prefix='/api/auth')
     app.register_blueprint(games_bp, url_prefix='/api/games')
     app.register_blueprint(watchlist_bp, url_prefix='/api')  # /api/watchlist, /api/search, /api/alerts, /api/categories
     app.register_blueprint(library_bp, url_prefix='/api')    # /api/library
+    app.register_blueprint(submissions_bp, url_prefix='/api/games')  # POST /api/games (user-added games + mods)
 
     # ── Tables ────────────────────────────────────────────────────────────────
     # no db.create_all() -- schema.sql is the one source of truth (it has

@@ -43,8 +43,17 @@ CREATE TABLE IF NOT EXISTS games (
     synopsis        TEXT,
     icon_url        VARCHAR(500),  -- small thumbnail, for grid/list views
     banner_url      VARCHAR(500),  -- bigger hero image, for the detail page
+    -- phase 2, niche games: NULL for games the import scripts pulled in,
+    -- otherwise the user who added it themselves (mods, obscure, delisted,
+    -- games with no store page). only they can edit it for now
+    submitted_by    INT NULL,
+    -- a mod points at the game it's for (skyrim mod -> skyrim). this is a
+    -- foreign key back to the same table. NULL for normal games
+    base_game_id    INT NULL,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_match_title (match_title)  -- not UNIQUE, two different games can share a name
+    KEY idx_match_title (match_title),  -- not UNIQUE, two different games can share a name
+    FOREIGN KEY (submitted_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (base_game_id) REFERENCES games(game_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 -- note: this one table covers both a homepage grid (title, icon_url,
 -- genre) AND the detail page (synopsis, developer, publisher, etc) --
@@ -577,7 +586,7 @@ WHERE l.current_price = (
 
 -- recap:
 -- users            - accounts
--- games            - the actual games (title, genre, dev/publisher, etc)
+-- games            - the actual games (title, genre, dev/publisher, etc) -- imported or user-submitted, mods point at their base game
 -- user_games       - connects users to games: wishlist (want_to_play) or library (backlog/playing/completed)
 -- status_history   - logs status changes over time
 -- lists            - custom lists people make
