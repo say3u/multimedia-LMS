@@ -43,7 +43,13 @@ def create_app():
     # ── Config ────────────────────────────────────────────────────────────────
     app.config.update(
         SQLALCHEMY_DATABASE_URI=database_url(),
-        SQLALCHEMY_ENGINE_OPTIONS={'pool_pre_ping': True},  # survive mysql dropping idle connections
+        SQLALCHEMY_ENGINE_OPTIONS={
+            'pool_pre_ping': True,  # survive mysql dropping idle connections
+            # talk to mysql in UTC no matter where it runs (railway's mysql is
+            # UTC, our laptops aren't). TIMESTAMP columns come back in UTC and
+            # db.py tags them with a Z, so browsers show the right local time
+            'connect_args': {'init_command': "SET time_zone = '+00:00'"},
+        },
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-flask-secret-change-me'),
         JWT_SECRET_KEY=os.environ.get('JWT_SECRET_KEY', 'dev-jwt-secret-change-me'),

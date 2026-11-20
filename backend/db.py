@@ -21,10 +21,14 @@ from .extensions import db
 
 
 def _clean(value):
-    """Decimal -> float and dates -> ISO strings so jsonify is happy"""
+    """Decimal -> float and dates -> ISO strings so jsonify is happy.
+    timestamps get a Z on the end -- the connection runs in UTC (see
+    app.py), and without the Z browsers would read them as local time"""
     if isinstance(value, Decimal):
         return float(value)
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, datetime):  # before date, datetime is a kind of date
+        return value.isoformat() + "Z"
+    if isinstance(value, date):
         return value.isoformat()
     return value
 
