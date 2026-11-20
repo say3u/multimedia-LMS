@@ -56,6 +56,25 @@ CREATE TABLE IF NOT EXISTS games (
 -- is cheap to compute with a query against listings/price_history
 -- instead of storing (and risking it going stale)
 
+-- NOTIFICATION_CATEGORIES TABLE
+-- this replaces the notify_level enum we had before, based on a
+-- teammate's idea that's honestly a better version of it -- instead of
+-- 3 fixed options (instant/digest/muted), each USER can make their own
+-- categories with their own check schedule. e.g. someone could make a
+-- "hunting hard" category that checks every hour, and a "someday maybe"
+-- category that only checks once a week. categories belong to a user
+-- (not global) since two different people probably don't want the same
+-- schedule for a category with the same name
+CREATE TABLE IF NOT EXISTS notification_categories (
+    category_id             INT AUTO_INCREMENT PRIMARY KEY,
+    user_id                 INT NOT NULL,
+    name                    VARCHAR(50) NOT NULL,  -- e.g. 'hunting hard', 'someday maybe', 'muted'
+    check_interval_minutes  INT,  -- how often the price-check job should look at games in this category. null = don't auto check
+    created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_category_name (user_id, name)
+) ENGINE=InnoDB;
+
 -- USER_GAMES TABLE -- the main join table, connects users to games
 -- one user can track a ton of games, one game can be tracked by a ton of
 -- users, so it's many-to-many and needs this table in between. this is
@@ -70,8 +89,21 @@ CREATE TABLE IF NOT EXISTS user_games (
     notes           TEXT,
     added_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    -- WISHLIST NOTIFICATION SETTINGS
+    -- user_games represents each user's wishlist item. These fields connect
+    -- the item to an optional notification category, store an optional target
+    -- price, and allow notifications to be turned on or off. Keeping these
+    -- settings on user_games means a user can track a game without needing
+    -- to create a price alert immediately.
+    -- (moved these into the CREATE TABLE so schema.sql can be re-run --
+    -- the old ALTER TABLE failed with "duplicate column" the 2nd time)
+    category_id     INT NULL,
+    target_price    DECIMAL(8,2) NULL,
+    notify_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_games_category FOREIGN KEY (category_id)
+        REFERENCES notification_categories(category_id) ON DELETE SET NULL,
     UNIQUE KEY uq_user_game (user_id, game_id)
 ) ENGINE=InnoDB;
 
@@ -277,40 +309,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     )
 ) ENGINE=InnoDB;
 
--- NOTIFICATION_CATEGORIES TABLE
--- this replaces the notify_level enum we had before, based on a
--- teammate's idea that's honestly a better version of it -- instead of
--- 3 fixed options (instant/digest/muted), each USER can make their own
--- categories with their own check schedule. e.g. someone could make a
--- "hunting hard" category that checks every hour, and a "someday maybe"
--- category that only checks once a week. categories belong to a user
--- (not global) since two different people probably don't want the same
--- schedule for a category with the same name
-CREATE TABLE IF NOT EXISTS notification_categories (
-    category_id             INT AUTO_INCREMENT PRIMARY KEY,
-    user_id                 INT NOT NULL,
-    name                    VARCHAR(50) NOT NULL,  -- e.g. 'hunting hard', 'someday maybe', 'muted'
-    check_interval_minutes  INT,  -- how often the price-check job should look at games in this category. null = don't auto check
-    created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    UNIQUE KEY uq_user_category_name (user_id, name)
-) ENGINE=InnoDB;
 
--- WISHLIST NOTIFICATION SETTINGS
--- user_games represents each user's wishlist item. These fields connect
--- the item to an optional notification category, store an optional target
--- price, and allow notifications to be turned on or off. Keeping these
--- settings on user_games means a user can track a game without needing
--- to create a price alert immediately.
-
-ALTER TABLE user_games
-    ADD category_id INT NULL,
-    ADD target_price DECIMAL(8,2) NULL,
-    ADD notify_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    ADD CONSTRAINT fk_user_games_category
-        FOREIGN KEY (category_id)
-        REFERENCES notification_categories(category_id)
-        ON DELETE SET NULL;
 
 -- PRICE_ALERTS TABLE
 -- basically a wishlist entry with a target price attached -- "let me
