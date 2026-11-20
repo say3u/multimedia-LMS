@@ -55,15 +55,16 @@ def get_game(game_id):
             g.publisher,
             g.release_year,
             g.synopsis,
-            ug.user_game_id IS NOT NULL AS on_watchlist,
+            ug.status = 'want_to_play' AS on_watchlist,
+            ug.status AS my_status,  -- want_to_play / backlog / playing / completed, NULL = not yours
             ug.added_at AS watchlist_since,
             ug.notify_enabled AS notify,
-            ug.target_price
+            ug.target_price,
+            ug.min_price
         FROM games g
         LEFT JOIN user_games ug
             ON ug.game_id = g.game_id
             AND ug.user_id = %s
-            AND ug.status = 'want_to_play'
         WHERE g.game_id = %s
         """,
         (user_id, game_id), one=True,
