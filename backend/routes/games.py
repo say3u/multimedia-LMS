@@ -84,6 +84,7 @@ def get_game(game_id):
         """
         SELECT
             p.name AS store,
+            p.platform_type AS store_type,  -- pc / mobile / ... so the page can group them
             l.current_price AS price,
             l.regular_price,
             CASE

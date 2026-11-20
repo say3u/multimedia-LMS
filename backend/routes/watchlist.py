@@ -27,6 +27,33 @@ DEFAULT_CATEGORIES = [
 ]
 
 
+STORE_TYPES = ("pc", "console", "vr", "mobile", "mods")  # platforms.platform_type
+
+# same columns as the current_best_prices view, but only counting one
+# kind of store. ROW_NUMBER() picks the cheapest listing per game (ties
+# broken by store name so it's always the same one)
+BEST_PRICE_BY_TYPE_SQL = """(
+    SELECT * FROM (
+        SELECT
+            l.game_id,
+            l.current_price,
+            l.regular_price,
+            CASE WHEN l.regular_price > 0
+                 THEN ROUND((l.regular_price - l.current_price) / l.regular_price * 100)
+            END AS discount_percent,
+            p.name AS platform_name,
+            l.last_checked_at,
+            ROW_NUMBER() OVER (PARTITION BY l.game_id
+                               ORDER BY l.current_price, p.name) AS rn
+        FROM listings l
+        JOIN platforms p ON p.platform_id = l.platform_id
+        WHERE l.current_price IS NOT NULL
+          AND p.platform_type = %s
+    ) ranked
+    WHERE rn = 1
+)"""
+
+
 def current_user_id():
     return int(get_jwt_identity())
 
@@ -99,8 +126,15 @@ def get_categories():
 @watchlist_bp.get("/watchlist")
 @jwt_required()
 def get_watchlist():
+    # ?store_type=pc -> best price only counts pc stores, so a $4.99
+    # iphone sale doesn't show up as the deal for someone on pc
+    store_type = request.args.get("store_type")
+    if store_type is not None and store_type not in STORE_TYPES:
+        return jsonify({"error": f"store_type must be one of: {', '.join(STORE_TYPES)}"}), 400
+    best_join, params = (BEST_PRICE_BY_TYPE_SQL, [store_type]) if store_type else ("current_best_prices", [])
+
     rows = query(
-        """
+        f"""
         SELECT
             ug.user_game_id,
             g.game_id,
@@ -122,13 +156,13 @@ def get_watchlist():
             ON g.game_id = ug.game_id
         LEFT JOIN notification_categories nc
             ON nc.category_id = ug.category_id
-        LEFT JOIN current_best_prices cbp
+        LEFT JOIN {best_join} cbp
             ON cbp.game_id = ug.game_id
         WHERE ug.user_id = %s
           AND ug.status = 'want_to_play'
         ORDER BY g.title
         """,
-        (current_user_id(),),
+        (*params, current_user_id()),
     )
 
     # the view can give a game twice if two stores tie for cheapest,
@@ -285,8 +319,17 @@ def remove_from_watchlist(game_id):
 @watchlist_bp.get("/search")
 @jwt_required()
 def search_games():
+    """search by title, optionally filtered by tag (?tag=mod) and/or
+    store type (?store_type=mobile). with a filter you can leave q out,
+    e.g. ?tag=vr lists every vr game. store_type also limits the store
+    count / best price to that kind of store"""
     text = request.args.get("q", "").strip()
-    if len(text) < 2:
+    tag = (request.args.get("tag") or "").strip().lower() or None
+    store_type = request.args.get("store_type") or None
+
+    if store_type is not None and store_type not in STORE_TYPES:
+        return jsonify({"error": f"store_type must be one of: {', '.join(STORE_TYPES)}"}), 400
+    if len(text) < 2 and not (tag or store_type):
         return jsonify({"error": "Enter at least 2 characters"}), 400
 
     # Treat search text literally, including % and _ characters.
@@ -300,12 +343,16 @@ def search_games():
             (
                 SELECT COUNT(*)
                 FROM listings l
+                JOIN platforms p ON p.platform_id = l.platform_id
                 WHERE l.game_id = g.game_id
+                  AND (%(type)s IS NULL OR p.platform_type = %(type)s)
             ) AS stores_found,
             (
                 SELECT MIN(l.current_price)
                 FROM listings l
+                JOIN platforms p ON p.platform_id = l.platform_id
                 WHERE l.game_id = g.game_id
+                  AND (%(type)s IS NULL OR p.platform_type = %(type)s)
             ) AS best_price,
             (
                 SELECT p.name
@@ -314,6 +361,7 @@ def search_games():
                     ON p.platform_id = l.platform_id
                 WHERE l.game_id = g.game_id
                   AND l.current_price IS NOT NULL
+                  AND (%(type)s IS NULL OR p.platform_type = %(type)s)
                 ORDER BY l.current_price, p.name
                 LIMIT 1
             ) AS best_store,
@@ -321,15 +369,21 @@ def search_games():
                 SELECT 1
                 FROM user_games ug
                 WHERE ug.game_id = g.game_id
-                  AND ug.user_id = %s
+                  AND ug.user_id = %(user)s
                   AND ug.status = 'want_to_play'
             ) AS on_watchlist
         FROM games g
-        WHERE g.title LIKE %s ESCAPE '!'
+        WHERE g.title LIKE %(text)s ESCAPE '!'
+          AND (%(tag)s IS NULL OR EXISTS (
+                SELECT 1 FROM game_tags gt JOIN tags t ON t.tag_id = gt.tag_id
+                WHERE gt.game_id = g.game_id AND t.name = %(tag)s))
+          AND (%(type)s IS NULL OR EXISTS (
+                SELECT 1 FROM listings l JOIN platforms p ON p.platform_id = l.platform_id
+                WHERE l.game_id = g.game_id AND p.platform_type = %(type)s))
         ORDER BY g.title, g.game_id
         LIMIT 20
         """,
-        (current_user_id(), f"%{search_text}%"),
+        {"user": current_user_id(), "text": f"%{search_text}%", "tag": tag, "type": store_type},
     )
     for game in results:
         game["on_watchlist"] = bool(game["on_watchlist"])
