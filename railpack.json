@@ -1,0 +1,12 @@
+{
+  "build": {
+    "nixPackages": ["nodejs_20"],
+    "cmds": [
+      "npm --prefix frontend ci --include=dev",
+      "npm --prefix frontend run build"
+    ]
+  },
+  "deploy": {
+    "startCommand": "gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60"
+  }
+}

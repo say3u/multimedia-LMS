@@ -1,0 +1,119 @@
+/* ── Scroll reveal ─────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
+/* ── Keyframes ─────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-18px) rotate(6deg); }
+}
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.2; }
+  40%            { opacity: 1; }
+}
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+@keyframes scroll-up {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+@keyframes slide-down {
+  from { transform: translateY(-110%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gb-floating   { animation: none !important; }
+  .marquee-track { animation: none !important; }
+  .notif-card    { animation: none !important; }
+}
+
+/* ── Hero layout ───────────────────────────────── */
+.hero-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3rem;
+  padding: 0 5rem;
+  max-width: 1300px;
+  margin: 0 auto;
+  min-height: calc(100vh - 72px);
+}
+.hero-text  { flex: 1; max-width: 520px; }
+.hero-phone {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 580px;
+}
+
+/* ── Stats ─────────────────────────────────────── */
+.stats-grid {
+  display: flex;
+  justify-content: center;
+  gap: 5rem;
+}
+
+/* ── Feature blocks ────────────────────────────── */
+.feature-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 5rem;
+}
+.feature-block {
+  display: flex;
+  align-items: center;
+  gap: 5rem;
+  padding: 3.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.feature-block:last-child { border-bottom: none; }
+.feature-block.reverse    { flex-direction: row-reverse; }
+.feature-text             { flex: 1; }
+.feature-visual-wrap      { flex: 1; position: relative; }
+
+
+/* ── Responsive ────────────────────────────────── */
+@media (max-width: 960px) {
+  .hero-inner {
+    flex-direction: column;
+    padding: 2.5rem 1.5rem 4rem;
+    text-align: center;
+    min-height: auto;
+  }
+  .hero-text  { max-width: 100%; }
+  .hero-phone { min-height: 480px; width: 100%; }
+  .feature-wrap { padding: 0 1.5rem; }
+  .feature-block,
+  .feature-block.reverse {
+    flex-direction: column;
+    gap: 2rem;
+    padding: 2.5rem 0;
+  }
+  .stats-grid { flex-wrap: wrap; gap: 2.5rem 3rem; }
+}
+@media (max-width: 480px) {
+  .hero-inner { padding: 2rem 1rem 3rem; }
+  .stats-grid { flex-direction: column; align-items: center; }
+}

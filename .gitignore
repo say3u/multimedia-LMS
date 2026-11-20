@@ -1,6 +1,21 @@
 # never commit real secrets
 .env
+.env.local
 
 # python junk
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+instance/
+
+# node
+frontend/node_modules/
+frontend/dist/
+
+# os junk
+.DS_Store
