@@ -41,6 +41,7 @@ multimedia-LMS/
 ├── import_steam.py       # pull game details + prices from each store...
 ├── import_GOG.py
 ├── import_Epic.py
+├── import_appstore.py    # mobile games (App Store, phase 2)
 ├── game_matching.py      # ...so the same game from 3 stores = 1 game
 ├── backend/
 │   ├── app.py            # flask app (serves the api + the built frontend)
@@ -48,8 +49,11 @@ multimedia-LMS/
 │   ├── models.py         # SQLAlchemy models (used by login + library)
 │   └── routes/
 │       ├── auth.py       # /api/auth — register, login, me
-│       ├── games.py      # /api/games — search, game page, your library
-│       └── watchlist.py  # /api/watchlist, /api/search, /api/alerts, /api/categories
+│       ├── games.py      # /api/games — search, game page, dashboard list
+│       ├── watchlist.py  # /api/watchlist, /api/search, /api/alerts, /api/categories
+│       ├── library.py    # /api/library — games you own (phase 1.5)
+│       ├── submissions.py # POST /api/games — user-added games + mods (phase 2)
+│       └── social.py     # /api/users, /api/feed, reviews (phase 2)
 ├── frontend/             # react app (vite)
 ├── tests/testwishlist.sql
 ├── Dockerfile            # railway build: node builds frontend, python serves it
@@ -69,8 +73,8 @@ You need Python 3.11+, Node 20+, and MySQL 8.
    `schema.sql`. Safe to run again.
    **If you have an old database from before Nov 20:** the tables changed,
    so `DROP DATABASE game_tracker;` first, then run it.
-4. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py`) to pull
-   real games + prices in.
+4. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py` /
+   `import_appstore.py`) to pull real games + prices in.
 5. Start everything:
    - Windows: `dev.bat`
    - Mac/Linux: `./dev.sh`
@@ -87,6 +91,16 @@ serves the API and the built frontend from one Gunicorn process. Railway
 injects `DATABASE_URL`, `SECRET_KEY` and `JWT_SECRET_KEY`. After the first
 deploy (or whenever schema.sql changes), run `python init_db.py` once with
 `DATABASE_URL` pointed at the Railway database.
+
+## Phases
+- **Phase 1** — price tracking + wishlist with notification categories
+- **Phase 1.5** — "my library": games you already own aren't price tracked
+  (`backlog` / `playing` / `completed`), with what you paid and saved
+- **Phase 2** — user-added games + mods, price ranges ("between $X and $Y"),
+  mobile (App Store), filters by tag / store type, and social (follows,
+  profiles with privacy, friends feed, reviews, friends who want a game)
+
+See `API.md` for every endpoint.
 
 ## ER Diagram
 
