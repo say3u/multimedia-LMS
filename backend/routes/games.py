@@ -8,7 +8,7 @@ from .watchlist import default_category_id
 
 games_bp = Blueprint('games', __name__)
 
-VALID_STATUSES = {'want_to_play', 'playing', 'completed'}
+VALID_STATUSES = {'want_to_play', 'backlog', 'playing', 'completed'}  # backlog = owned, not played yet
 
 
 @games_bp.get('')

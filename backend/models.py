@@ -104,7 +104,7 @@ class UserGame(db.Model):
     user_game_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id      = db.Column(db.Integer, db.ForeignKey('users.user_id',  ondelete='CASCADE'), nullable=False)
     game_id      = db.Column(db.Integer, db.ForeignKey('games.game_id',  ondelete='CASCADE'), nullable=False)
-    status       = db.Column(SAEnum('want_to_play', 'playing', 'completed', name='user_game_status'), nullable=False, default='want_to_play')
+    status       = db.Column(SAEnum('want_to_play', 'backlog', 'playing', 'completed', name='user_game_status'), nullable=False, default='want_to_play')
     rating       = db.Column(db.SmallInteger)
     notes        = db.Column(db.Text)
     added_at     = db.Column(db.DateTime, server_default=db.func.now())
@@ -115,6 +115,10 @@ class UserGame(db.Model):
     category_id    = db.Column(db.Integer)
     target_price   = db.Column(db.Numeric(8, 2))
     notify_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    # library info (phase 1.5) -- where you own it, what you paid, when
+    owned_platform_id = db.Column(db.Integer)
+    paid_price        = db.Column(db.Numeric(8, 2))
+    bought_at         = db.Column(db.Date)
 
     __table_args__ = (db.UniqueConstraint('user_id', 'game_id', name='uq_user_game'),)
 
@@ -129,5 +133,8 @@ class UserGame(db.Model):
             'category_id':    self.category_id,
             'target_price':   float(self.target_price) if self.target_price is not None else None,
             'notify_enabled': self.notify_enabled,
+            'owned_platform_id': self.owned_platform_id,
+            'paid_price':     float(self.paid_price) if self.paid_price is not None else None,
+            'bought_at':      self.bought_at.isoformat() if self.bought_at else None,
             'added_at':       self.added_at.isoformat(),
         }
