@@ -9,7 +9,9 @@ here, tell me and I'll add it.
 - errors look like `{ "error": "message" }` with 400 / 401 / 403 / 404 / 409
 - 🔒 = needs login. send the token from register/login as
   `Authorization: Bearer <token>`
-- dates/times are ISO strings like `"2026-11-20T00:46:00"`
+- times are ISO strings in UTC like `"2026-11-20T00:46:00Z"` (the Z matters --
+  `new Date(...)` turns it into the viewer's local time). plain dates like
+  `bought_at` are just `"2026-11-15"`
 
 **contents:** [accounts](#accounts) · [games + search](#games--search) ·
 [watchlist](#watchlist-price-tracking) · [alerts](#alerts) ·
@@ -62,7 +64,8 @@ the game page. logged in = you also get your watchlist info + friends.
   "game_id": 1, "title": "Hollow Knight", "developer": "Team Cherry",
   "publisher": "Team Cherry", "release_year": 2017, "synopsis": "...",
   "platform": "PC",
-  "on_watchlist": true, "watchlist_since": "...", "notify": true, "target_price": 10.0,
+  "on_watchlist": true, "my_status": "want_to_play", "watchlist_since": "...",
+  "notify": true, "target_price": 10.0, "min_price": 5.0,
   "best": { "store": "Steam", "store_type": "pc", "price": 7.49, "regular_price": 14.99,
             "discount_percent": 50.0, "lowest_ever": 7.49, "url": "https://...", "currency": "USD",
             "last_checked_at": "..." },
@@ -74,6 +77,8 @@ the game page. logged in = you also get your watchlist info + friends.
   "friends_want": ["carol"]
 }
 ```
+- `my_status` is your user_games status for it (`want_to_play`, `backlog`,
+  `playing`, `completed`) or null if it's not on your lists
 - `store_type` lets the page group pc vs mobile prices
 - `submitted_by` is a username if a user added the game (null = imported)
 - `base_game_*` is set if this is a mod; `mod_count` = how many mods it has
