@@ -6,6 +6,7 @@ from game_matching import normalize_title
 from ..db import query
 from ..extensions import db
 from ..models import Game, UserGame, Listing, Platform, PriceHistory
+from .social import friends_who_want
 from .submissions import game_summary
 from .watchlist import default_category_id
 
@@ -78,6 +79,9 @@ def get_game(game_id):
     extra = game_summary(game_id)
     for key in ('submitted_by', 'base_game_id', 'base_game_title', 'mod_count', 'tags'):
         game[key] = extra[key]
+
+    # friends who want this too (phase 2 social) -- only when logged in
+    game['friends_want'] = friends_who_want(game_id, user_id) if user_id else []
 
     # Store prices and each store's lowest recorded price
     stores = query(
