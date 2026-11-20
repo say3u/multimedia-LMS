@@ -14,6 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
+COPY game_matching.py ./   # backend uses it to match titles the same way the importers do
 COPY --from=frontend /build/dist ./frontend/dist
 
 CMD gunicorn backend.app:app --bind "0.0.0.0:${PORT:-8000}" --workers 2 --timeout 60

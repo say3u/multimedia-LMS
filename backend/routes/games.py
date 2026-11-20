@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
+from game_matching import normalize_title
+
 from ..db import query
 from ..extensions import db
 from ..models import Game, UserGame, Listing, Platform, PriceHistory
@@ -13,7 +15,8 @@ VALID_STATUSES = {'want_to_play', 'backlog', 'playing', 'completed'}  # backlog 
 
 @games_bp.get('')
 def get_games():
-    q     = request.args.get('q', '').strip().lower()
+    # cleaned up the same way match_title is, so "Pokémon" finds "pokemon"
+    q     = normalize_title(request.args.get('q', ''))
     limit = min(int(request.args.get('limit', 50)), 200)
 
     query = Game.query.order_by(Game.title)

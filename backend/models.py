@@ -1,7 +1,9 @@
-import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Enum as SAEnum
 from .extensions import db
+# same title cleanup the import scripts use, so a game added here matches
+# the same game imported from steam/gog/epic ("Pokémon" -> "pokemon")
+from game_matching import normalize_title
 
 
 class Platform(db.Model):
@@ -34,10 +36,6 @@ class PriceHistory(db.Model):
     listing_id  = db.Column(db.Integer, db.ForeignKey('listings.listing_id', ondelete='CASCADE'), nullable=False)
     price       = db.Column(db.Numeric(8, 2), nullable=False)
     recorded_at = db.Column(db.DateTime, server_default=db.func.now())
-
-
-def _make_match_title(title):
-    return re.sub(r'[^a-z0-9 ]', '', title.lower()).strip()
 
 
 class User(db.Model):
@@ -81,7 +79,7 @@ class Game(db.Model):
 
     def __init__(self, **kwargs):
         if 'match_title' not in kwargs and 'title' in kwargs:
-            kwargs['match_title'] = _make_match_title(kwargs['title'])
+            kwargs['match_title'] = normalize_title(kwargs['title'])
         super().__init__(**kwargs)
 
     def to_dict(self):
