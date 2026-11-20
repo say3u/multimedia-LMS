@@ -4,6 +4,8 @@ Design Planning: https://docs.google.com/document/d/1SZhi5rWudaYoxWQ4refjZ3xmhEV
 
 Website Link: https://sites.google.com/view/gamebuddyfs
 
+Live app: https://gamebuddy-production.up.railway.app/
+
 ## What it is
 A multi-user game wishlist manager and price tracker. Sites like gg.deals
 track prices across major platforms but treat every wishlist item the same
@@ -22,43 +24,69 @@ weekly) so you only get pinged about what you actually care about.
 - Harish Raaj Sivakumar - Frontend 
 
 ## Tech stack
-- MySQL
-- Python (data import / price-check scripts)
+| Layer    | Technology |
+|----------|------------|
+| Frontend | React 18, React Router v6, Vite |
+| Backend  | Flask 3, Flask-JWT-Extended (logins), Flask-SQLAlchemy + plain SQL |
+| Database | MySQL (`schema.sql` — tables, views, stored procedures) |
+| Data     | Python import scripts (Steam, GOG, Epic) |
+| Deploy   | Railway (Docker, Gunicorn) |
 
 ## Project structure
-- `schema.sql` — database schema: games, per-user wishlist tracking, custom
-  notification categories with their own check schedules, price history, and
-  two stored procedures (lending a physical copy, and recording a price
-  check/triggering alerts) demonstrating transactions
-- `import_steam.py`, `import_GOG.py`, `import_Epic.py` — pull game details +
-  current pricing from each store and log it through the database
-- `game_matching.py` — shared by the importers so the same game from
-  different stores ends up as one game (with a row per store in
-  `game_sources`) instead of duplicates
-- `sample_queries.sql` — the queries the backend uses, grouped by feature
+```
+multimedia-LMS/
+├── schema.sql            # THE database schema (tables, view, stored procedures)
+├── init_db.py            # applies schema.sql to your db (no workbench needed)
+├── sample_queries.sql    # the queries the backend uses, grouped by feature
+├── import_steam.py       # pull game details + prices from each store...
+├── import_GOG.py
+├── import_Epic.py
+├── game_matching.py      # ...so the same game from 3 stores = 1 game
+├── backend/
+│   ├── app.py            # flask app (serves the api + the built frontend)
+│   ├── db.py             # helpers for running plain SQL from routes
+│   ├── models.py         # SQLAlchemy models (used by login + library)
+│   └── routes/
+│       ├── auth.py       # /api/auth — register, login, me
+│       ├── games.py      # /api/games — search, game page, your library
+│       └── watchlist.py  # /api/watchlist, /api/search, /api/alerts, /api/categories
+├── frontend/             # react app (vite)
+├── tests/testwishlist.sql
+├── Dockerfile            # railway build: node builds frontend, python serves it
+├── dev.sh / dev.bat      # run backend + frontend locally (mac/linux / windows)
+└── API.md                # every endpoint + its JSON
+```
 
-## Setup (so far..)
-1. Run `schema.sql` in MySQL Workbench (open the file, run the whole
-   script) to create the `game_tracker` database and all its tables.
-   **If you already ran an older version:** the games table changed
-   (Oct 11), so run `DROP DATABASE game_tracker;` first, then run
-   schema.sql again, then re-run the import scripts.
-2. `python -m pip install flask requests mysql-connector-python python-dotenv`
-3. Copy `.env.example` to `.env` and fill in your own MySQL password.
-4. Run `tests/testwishlist.sql` in MySQL Workbench to create the demo user,
-   notification category, and test wishlist item.
-6. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py`) to
-   pull sample game + pricing data in.
-7. Start the flask backend with `python app.py`
-8. Endpoints are viewable with
-   - http://127.0.0.1:5000/api/watchlist
-   - http://127.0.0.1:5000/api/alerts
-   - http://127.0.0.1:5000/api/search?q=hollow
+The frontend + backend used to live in a separate repo
+(harish950/gamebuddy) — it was merged in here with its history on Nov 20.
 
-## Status
-Phase 1 - schema built and tested, Steam import pipeline working
-end-to-end (games, prices, and price history confirmed populating
-correctly). Draft website content in progress.
+## Run it locally
+You need Python 3.11+, Node 20+, and MySQL 8.
+
+1. `pip install -r requirements.txt`
+2. Copy `.env.example` to `.env` and fill in your MySQL password.
+3. `python init_db.py` — creates the `game_tracker` database from
+   `schema.sql`. Safe to run again.
+   **If you have an old database from before Nov 20:** the tables changed,
+   so `DROP DATABASE game_tracker;` first, then run it.
+4. `python import_steam.py` (and `import_GOG.py` / `import_Epic.py`) to pull
+   real games + prices in.
+5. Start everything:
+   - Windows: `dev.bat`
+   - Mac/Linux: `./dev.sh`
+
+   then open http://localhost:3000 and register an account. Vite forwards
+   `/api` calls to Flask on :5001, so no CORS setup needed.
+
+`tests/testwishlist.sql` adds a demo user + wishlist item if you want test
+data without registering.
+
+## Deploying (Railway)
+The `Dockerfile` builds the React app in a Node stage, then a Python stage
+serves the API and the built frontend from one Gunicorn process. Railway
+injects `DATABASE_URL`, `SECRET_KEY` and `JWT_SECRET_KEY`. After the first
+deploy (or whenever schema.sql changes), run `python init_db.py` once with
+`DATABASE_URL` pointed at the Railway database.
 
 ## ER Diagram
 
