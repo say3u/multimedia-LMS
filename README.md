@@ -37,6 +37,8 @@ weekly) so you only get pinged about what you actually care about.
 multimedia-LMS/
 ├── schema.sql            # THE database schema (tables, view, stored procedures)
 ├── init_db.py            # applies schema.sql to your db (no workbench needed)
+├── migrate_db.py         # updates an EXISTING db (like railway's) to schema.sql, keeps data
+├── db_config.py          # how the scripts connect (DATABASE_URL or the DB_ values in .env)
 ├── sample_queries.sql    # the queries the backend uses, grouped by feature
 ├── import_steam.py       # pull game details + prices from each store...
 ├── import_GOG.py
@@ -88,9 +90,33 @@ data without registering.
 ## Deploying (Railway)
 The `Dockerfile` builds the React app in a Node stage, then a Python stage
 serves the API and the built frontend from one Gunicorn process. Railway
-injects `DATABASE_URL`, `SECRET_KEY` and `JWT_SECRET_KEY`. After the first
-deploy (or whenever schema.sql changes), run `python init_db.py` once with
-`DATABASE_URL` pointed at the Railway database.
+injects `DATABASE_URL`, `SECRET_KEY` and `JWT_SECRET_KEY` (set the two
+secrets to long random strings: `python -c "import secrets; print(secrets.token_hex(32))"`).
+
+### Updating the Railway database (do this BEFORE deploying new code)
+`init_db.py` only creates tables that don't exist yet, so an older database
+keeps its old columns and the new code crashes on them. `migrate_db.py`
+updates it in place -- it adds what's missing and never deletes data.
+
+1. Put the Railway connection string in your `.env` as `DATABASE_URL=...`
+   (it's in the Railway dashboard under the MySQL service). `.env` is
+   git-ignored, never commit it.
+2. **Back up first** (asks for the password):
+   ```
+   mysqldump -h <host> -P <port> -u root -p --routines --triggers railway > railway_backup.sql
+   ```
+   don't commit the backup either, it has everyone's accounts in it.
+3. `python migrate_db.py` -- dry run, prints every change it would make
+4. `python migrate_db.py --apply` -- does it (asks you to type the db name).
+   It should end with "database now matches schema.sql". Running it again
+   should say "nothing to change".
+5. Now deploy the new code (point Railway at this repo).
+6. Optional: `python import_steam.py` (etc) with the same `DATABASE_URL` to
+   pull more games in.
+7. Remove `DATABASE_URL` from your `.env` again so you don't accidentally
+   run things against production.
+
+If something goes wrong: `mysql -h <host> -P <port> -u root -p railway < railway_backup.sql`
 
 ## Phases
 - **Phase 1** — price tracking + wishlist with notification categories
