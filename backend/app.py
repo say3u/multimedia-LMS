@@ -57,8 +57,10 @@ def create_app():
     # ── Blueprints ────────────────────────────────────────────────────────────
     from .routes.auth import auth_bp
     from .routes.games import games_bp
+    from .routes.watchlist import watchlist_bp
     app.register_blueprint(auth_bp,  url_prefix='/api/auth')
     app.register_blueprint(games_bp, url_prefix='/api/games')
+    app.register_blueprint(watchlist_bp, url_prefix='/api')  # /api/watchlist, /api/search, /api/alerts, /api/categories
 
     # ── Tables ────────────────────────────────────────────────────────────────
     # no db.create_all() -- schema.sql is the one source of truth (it has

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from ..extensions import db
 from ..models import User
+from .watchlist import ensure_default_categories
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -29,6 +30,10 @@ def register():
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
+
+    # every account starts with a few notification categories so games
+    # can go on the wishlist right away (see watchlist.DEFAULT_CATEGORIES)
+    ensure_default_categories(user.user_id)
 
     token = create_access_token(identity=str(user.user_id))
     return jsonify(token=token, user=user.to_dict()), 201

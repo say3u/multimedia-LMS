@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
+from ..db import query
 from ..extensions import db
 from ..models import Game, UserGame, Listing, Platform, PriceHistory
+from .watchlist import default_category_id
 
 games_bp = Blueprint('games', __name__)
 
@@ -23,11 +25,119 @@ def get_games():
 
 
 @games_bp.get('/<int:game_id>')
+@jwt_required(optional=True)
 def get_game(game_id):
-    game = db.session.get(Game, game_id)
-    if not game:
+    """game page: details, every store's price, and price history for the
+    chart. (brandon's version from the old app.py -- replaced the simpler
+    one here since nothing in the frontend called it yet.) works logged
+    out too, you just don't get your own watchlist info"""
+    identity = get_jwt_identity()
+    user_id = int(identity) if identity else None
+
+    history_range = request.args.get('range', '1Y')
+    ranges = {'3M': -3, '1Y': -12, 'All': None}
+    if history_range not in ranges:
+        return jsonify(error='range must be 3M, 1Y, or All'), 400
+    months = ranges[history_range]
+
+    # Game details and this user's wishlist settings
+    game = query(
+        """
+        SELECT
+            g.game_id,
+            g.title,
+            g.developer,
+            g.publisher,
+            g.release_year,
+            g.synopsis,
+            ug.user_game_id IS NOT NULL AS on_watchlist,
+            ug.added_at AS watchlist_since,
+            ug.notify_enabled AS notify,
+            ug.target_price
+        FROM games g
+        LEFT JOIN user_games ug
+            ON ug.game_id = g.game_id
+            AND ug.user_id = %s
+            AND ug.status = 'want_to_play'
+        WHERE g.game_id = %s
+        """,
+        (user_id, game_id), one=True,
+    )
+    if game is None:
         return jsonify(error='game not found'), 404
-    return jsonify(game=game.to_dict())
+
+    game['on_watchlist'] = bool(game['on_watchlist'])
+    game['notify'] = bool(game['notify'])
+    game['platform'] = 'PC'
+
+    # Store prices and each store's lowest recorded price
+    stores = query(
+        """
+        SELECT
+            p.name AS store,
+            l.current_price AS price,
+            l.regular_price,
+            CASE
+                WHEN l.regular_price > 0
+                THEN ROUND(
+                    (l.regular_price - l.current_price)
+                    / l.regular_price * 100
+                )
+                WHEN l.regular_price = 0
+                     AND l.current_price = 0
+                THEN 0
+            END AS discount_percent,
+            l.currency,
+            COALESCE(l.listing_url, gs.source_url) AS url,
+            l.last_checked_at,
+            (
+                SELECT MIN(ph.price)
+                FROM price_history ph
+                WHERE ph.listing_id = l.listing_id
+            ) AS lowest_ever
+        FROM listings l
+        JOIN platforms p
+            ON p.platform_id = l.platform_id
+        LEFT JOIN game_sources gs
+            ON gs.game_id = l.game_id
+            AND gs.platform_id = l.platform_id
+        WHERE l.game_id = %s
+        ORDER BY
+            l.current_price IS NULL,
+            l.current_price,
+            p.name
+        """,
+        (game_id,),
+    )
+    game['stores'] = stores
+    game['best'] = next((s for s in stores if s['price'] is not None), None)
+    game['lowest_ever'] = min(
+        (s['lowest_ever'] for s in stores if s['lowest_ever'] is not None),
+        default=None,
+    )
+
+    # Price history for the requested chart range
+    game['history'] = query(
+        """
+        SELECT
+            ph.recorded_at AS date,
+            p.name AS store,
+            ph.price
+        FROM price_history ph
+        JOIN listings l
+            ON l.listing_id = ph.listing_id
+        JOIN platforms p
+            ON p.platform_id = l.platform_id
+        WHERE l.game_id = %s
+          AND (
+              %s IS NULL
+              OR ph.recorded_at >= TIMESTAMPADD(MONTH, %s, NOW())
+          )
+        ORDER BY ph.recorded_at, ph.history_id
+        """,
+        (game_id, months, months),
+    )
+    return jsonify(game)
 
 
 @games_bp.get('/user-games')
@@ -140,6 +250,10 @@ def add_user_game():
         return jsonify(user_game=existing.to_dict()), 200
 
     ug = UserGame(user_id=user_id, game_id=game_id, status=status)
+    if status == 'want_to_play':
+        # without a category record_price_check never alerts on it,
+        # so wishlist games start in the user's default category
+        ug.category_id = default_category_id(user_id)
     db.session.add(ug)
     db.session.commit()
     return jsonify(user_game=ug.to_dict()), 201
